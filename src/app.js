@@ -292,7 +292,12 @@ async function checkReleases({ silent } = {}) {
       changes++; found.push(`${s.title} t.${g.count}`);
     } catch { errors++; }
   }
-  if (errors && !changes && errors === state.series.length) { state.checking = false; render(); if (!silent) snack("Le catalogue de la BnF ne répond pas. Vérifie ta connexion."); return; }
+  if (errors && !changes && errors === state.series.length) {
+    await persist(); state.checking = false; render(); scheduleNotifications();
+    if (announced.length) snack(`Annoncé : ${announced.join(", ")}`, 8000);
+    else if (!silent) snack("Le catalogue de la BnF ne répond pas. Vérifie ta connexion.");
+    return;
+  }
   state.meta = { ...state.meta, checkedAt: new Date().toISOString(), source: "BnF" };
   await persist();
   state.checking = false; render(); scheduleNotifications();
