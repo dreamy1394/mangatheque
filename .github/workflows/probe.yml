@@ -14,20 +14,12 @@ jobs:
           mkdir -p probe
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36"
           fetch() { curl -sSL -A "$UA" -H "Accept-Language: fr-FR,fr" -o "probe/$1.html" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" || echo "$1 FAIL"; }
-          fetch gbooks "https://www.googleapis.com/books/v1/volumes?q=intitle:frieren&langRestrict=fr&maxResults=40&orderBy=newest&printType=books"
-          fetch gbooks2 "https://www.googleapis.com/books/v1/volumes?q=frieren+ki-oon&maxResults=40"
-          curl -sS -X POST -H "Content-Type: application/json" -o probe/anilist.html -w "anilist %{http_code} %{size_download}\n" https://graphql.anilist.co -d '{"query":"{ Page(perPage:3){ media(search:\"frieren\", type:MANGA){ title{romaji english native} status volumes chapters coverImage{large} synonyms } } }"}'
-          fetch bnf "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=bib.title%20all%20%22frieren%22&recordSchema=dublincore&maximumRecords=50"
-          head -c 1500 probe/gbooks.html; echo; head -c 800 probe/anilist.html; echo; head -c 1500 probe/bnf.html; echo
-          python3 - <<'PY'
-          import json
-          for f in ["probe/gbooks.html","probe/gbooks2.html"]:
-              try:
-                  d=json.load(open(f)); print(f, d.get("totalItems"), d.get("error",{}).get("message"))
-                  for it in d.get("items",[])[:40]:
-                      v=it["volumeInfo"]; print(" ", v.get("title"), "|", v.get("subtitle"), "|", v.get("publisher"), "|", v.get("publishedDate"), "|", "thumb" if v.get("imageLinks") else "-", "|", v.get("language"))
-              except Exception as e: print(f, e)
-          PY
+          img() { curl -sSL -A "$UA" -o "probe/$1" -w "$1 %{http_code} %{size_download} %{content_type}\n" "$2"; }
+          img ol-cover.jpg "https://covers.openlibrary.org/b/isbn/9791032716113-L.jpg?default=false"
+          img bnf-cover.jpg "https://catalogue.bnf.fr/couverture?&appName=NE&idArk=ark:/12148/cb47614865f&couverture=1"
+          fetch bnf-valk "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=bib.title%20all%20%22valkyrie%20apocalypse%22%20and%20bib.doctype%20any%20%22a%22&recordSchema=dublincore&maximumRecords=100"
+          fetch bnf-intermarc "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=bib.isbn%20all%20%229791032716113%22&recordSchema=intermarcxchange&maximumRecords=1"
+          fetch bnf-recent "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=bib.title%20all%20%22one%20piece%22%20and%20bib.publisher%20all%20%22glenat%22&recordSchema=dublincore&maximumRecords=100&sortKeys=date,,0"
           true
       - name: Enregistrer
         run: |
