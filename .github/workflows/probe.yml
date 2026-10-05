@@ -1,0 +1,29 @@
+name: Sonde Manga-news
+on:
+  push:
+    branches: [probe]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capturer les pages
+        run: |
+          mkdir -p probe
+          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36"
+          fetch() { curl -sSL -A "$UA" -H "Accept-Language: fr-FR,fr" -o "probe/$1.html" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" || echo "$1 FAIL"; }
+          fetch planning "https://www.manga-news.com/index.php/planning?p_year=2026&p_month=10&p_editor="
+          fetch planning-default "https://www.manga-news.com/index.php/planning"
+          fetch recherche "https://www.manga-news.com/index.php/recherche/?q=frieren"
+          fetch recherche2 "https://www.manga-news.com/index.php/recherche/?search=frieren"
+          fetch serie "https://www.manga-news.com/index.php/serie/Valkyrie-Apocalypse"
+          fetch vol "https://www.manga-news.com/index.php/manga/Akane-banashi/vol-16"
+          fetch nautiljon "https://www.nautiljon.com/mangas/?q=frieren"
+          curl -sSI -A "$UA" "https://www.manga-news.com/index.php/planning" | head -20
+          for f in probe/*.html; do echo "== $f"; grep -o 'Sortie le [0-9/]*' "$f" | head -3; grep -o '<title>[^<]*' "$f"; grep -c 'vol-' "$f"; done
+      - name: Enregistrer
+        run: |
+          git config user.name "probe"; git config user.email "probe@users.noreply.github.com"
+          git add probe && git commit -m "probe html" && git push
