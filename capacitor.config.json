@@ -1,0 +1,13 @@
+{
+  "appId": "fr.tanguy.mangatheque",
+  "appName": "Mangathèque",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "LocalNotifications": {
+      "iconColor": "#4355b9"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Construire l'appli web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Générer le projet Android
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Compiler et signer l'APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/zipalign -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          $BT/apksigner sign --ks ../keystore/mangatheque.keystore --ks-pass pass:mangatheque --key-pass pass:mangatheque --ks-key-alias mangatheque --out ../mangatheque.apk aligned.apk
+          $BT/apksigner verify ../mangatheque.apk
+
+      - name: Publier l'APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Mangathèque v1.0.${{ github.run_number }}
+          make_latest: true
+          files: mangatheque.apk
+          body: |
+            Télécharge mangatheque.apk sur ton téléphone puis ouvre-le pour installer ou mettre à jour l'appli.

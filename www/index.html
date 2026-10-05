@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Mangathèque</title>
+<style>
+@font-face { font-family: "Material Symbols Rounded"; font-style: normal; font-weight: 100 700; font-display: block; src: url("fonts/material-symbols-rounded.woff2") format("woff2"); }
+
+/* Layout : application Material 3, une colonne mobile (centrée sur grand écran), barre du haut, contenu, bouton flottant, barre de navigation en bas. */
+:root {
+  --primary: #4355b9; --on-primary: #ffffff; --primary-container: #dee0ff; --on-primary-container: #00105c;
+  --secondary-container: #e0e1f9; --on-secondary-container: #181a2c;
+  --error: #ba1a1a; --error-container: #ffdad6; --on-error-container: #410002;
+  --success: #2a6b3c; --success-container: #c8f0cf;
+  --surface: #fbf8ff; --surface-low: #f5f2fa; --surface-mid: #efedf4; --surface-high: #e9e7ef; --surface-highest: #e3e1e9;
+  --on-surface: #1b1b21; --on-surface-variant: #46464f; --outline: #767680; --outline-variant: #c6c5d0;
+  --inverse-surface: #303036; --inverse-on-surface: #f2eff7; --inverse-primary: #bac3ff;
+  --scrim: rgb(0 0 0 / .4);
+  --font: Roboto, "Roboto Flex", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Roboto Mono", monospace, ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #bac3ff; --on-primary: #08218a; --primary-container: #293ca0; --on-primary-container: #dee0ff;
+    --secondary-container: #444559; --on-secondary-container: #e0e1f9;
+    --error: #ffb4ab; --error-container: #93000a; --on-error-container: #ffdad6;
+    --success: #9ad6a6; --success-container: #0f5227;
+    --surface: #121318; --surface-low: #1b1b21; --surface-mid: #1f1f25; --surface-high: #2a292f; --surface-highest: #34343a;
+    --on-surface: #e4e1e9; --on-surface-variant: #c6c5d0; --outline: #90909a; --outline-variant: #46464f;
+    --inverse-surface: #e4e1e9; --inverse-on-surface: #303036; --inverse-primary: #4355b9;
+    --scrim: rgb(0 0 0 / .6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --primary: #bac3ff; --on-primary: #08218a; --primary-container: #293ca0; --on-primary-container: #dee0ff;
+  --secondary-container: #444559; --on-secondary-container: #e0e1f9;
+  --error: #ffb4ab; --error-container: #93000a; --on-error-container: #ffdad6;
+  --success: #9ad6a6; --success-container: #0f5227;
+  --surface: #121318; --surface-low: #1b1b21; --surface-mid: #1f1f25; --surface-high: #2a292f; --surface-highest: #34343a;
+  --on-surface: #e4e1e9; --on-surface-variant: #c6c5d0; --outline: #90909a; --outline-variant: #46464f;
+  --inverse-surface: #e4e1e9; --inverse-on-surface: #303036; --inverse-primary: #4355b9;
+  --scrim: rgb(0 0 0 / .6); color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html { background: var(--surface); }
+body { background: var(--surface); color: var(--on-surface); font-family: var(--font); font-size: 14px; line-height: 20px; letter-spacing: .01em; }
+button, input, select { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ms { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 0, "wght" 400, "opsz" 24; display: inline-block; width: 1em; overflow: hidden; flex: none; }
+.ms.fill { font-variation-settings: "FILL" 1, "wght" 400, "opsz" 24; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app { max-width: 640px; margin: 0 auto; min-height: 100%; padding: 0 16px calc(104px + env(safe-area-inset-bottom, 0px)); }
+
+/* Barre du haut */
+.appbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); margin: 0 -16px; padding: 8px 4px 8px 16px; display: flex; align-items: center; gap: 4px; min-height: 64px; transition: background .2s; }
+.appbar.scrolled { background: var(--surface-mid); }
+.appbar.with-back { padding-left: 4px; }
+.appbar h1 { flex: 1; margin: 0; font-size: 22px; line-height: 28px; font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-btn { width: 48px; height: 48px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--on-surface-variant); position: relative; flex: none; }
+.icon-btn:hover { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.icon-btn:active { background: color-mix(in srgb, var(--on-surface) 12%, transparent); }
+.icon-btn.tonal { width: 40px; height: 40px; background: var(--secondary-container); color: var(--on-secondary-container); }
+.icon-btn.on { color: var(--primary); }
+.searchbar { display: flex; align-items: center; gap: 4px; background: var(--surface-high); border-radius: 28px; height: 56px; padding: 0 4px 0 16px; margin: 0 0 8px; }
+.searchbar input { flex: 1; border: 0; background: transparent; font-size: 16px; min-width: 0; outline: none; }
+
+/* Navigation du bas */
+.navbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface-mid); padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px)); }
+.navbar .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+.nav-item { border: 0; background: none; display: grid; justify-items: center; gap: 4px; padding: 0; color: var(--on-surface-variant); font-size: 12px; font-weight: 500; line-height: 16px; }
+.nav-item .pill { width: 64px; height: 32px; border-radius: 16px; display: grid; place-items: center; position: relative; transition: background .2s; }
+.nav-item[aria-current="page"] { color: var(--on-surface); }
+.nav-item[aria-current="page"] .pill { background: var(--secondary-container); color: var(--on-secondary-container); }
+.badge { position: absolute; top: 2px; left: 36px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--error); color: var(--surface); font-size: 11px; line-height: 16px; font-weight: 500; text-align: center; }
+
+/* Bouton flottant */
+.fab { position: fixed; z-index: 6; right: max(16px, calc(50vw - 320px + 16px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); height: 56px; border-radius: 16px; border: 0; padding: 0 20px 0 16px; display: flex; align-items: center; gap: 12px; background: var(--primary-container); color: var(--on-primary-container); font-weight: 500; font-size: 14px; box-shadow: 0 3px 6px rgb(0 0 0 / .18), 0 1px 3px rgb(0 0 0 / .12); }
+.fab:active { box-shadow: 0 1px 3px rgb(0 0 0 / .2); }
+
+/* Boutons */
+.btn { height: 40px; border-radius: 20px; padding: 0 24px; border: 0; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn .ms { font-size: 18px; }
+.btn.filled { background: var(--primary); color: var(--on-primary); }
+.btn.tonal { background: var(--secondary-container); color: var(--on-secondary-container); }
+.btn.outlined { background: transparent; border: 1px solid var(--outline); color: var(--primary); }
+.btn.text { background: transparent; color: var(--primary); padding: 0 12px; }
+.btn.danger { color: var(--error); }
+.btn:disabled { opacity: .38; cursor: default; }
+.btn.small { height: 32px; padding: 0 14px; font-size: 13px; }
+
+/* Puces de filtre */
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 0 12px; margin: 0 -16px; padding-inline: 16px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { height: 32px; border-radius: 8px; border: 1px solid var(--outline-variant); background: transparent; padding: 0 16px; font-size: 14px; font-weight: 500; color: var(--on-surface-variant); display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; flex: none; }
+.chip[aria-pressed="true"] { background: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; padding-left: 8px; }
+.chip .ms { font-size: 18px; }
+
+.summary { color: var(--on-surface-variant); font-size: 14px; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.summary b { color: var(--on-surface); font-weight: 600; }
+.section-title { font-size: 14px; font-weight: 500; color: var(--primary); margin: 20px 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.section-title span { color: var(--on-surface-variant); font-weight: 400; font-size: 12px; }
+
+/* Cartes séries */
+.list { display: grid; gap: 8px; }
+.s-card { display: flex; gap: 14px; align-items: center; background: var(--surface-low); border-radius: 16px; padding: 12px 12px 12px 12px; cursor: pointer; border: 0; width: 100%; text-align: left; position: relative; }
+.s-card:hover { background: color-mix(in srgb, var(--on-surface) 5%, var(--surface-low)); }
+.cv { width: 56px; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--surface-highest); display: grid; place-items: center; color: var(--on-surface-variant); font-family: var(--mono); font-size: 13px; flex: none; }
+.cv img, .tile img, .hero-cv img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.s-body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.s-t { font-size: 16px; line-height: 24px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-sub { font-size: 13px; color: var(--on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress { height: 4px; border-radius: 2px; background: var(--surface-highest); overflow: hidden; margin-top: 4px; }
+.progress span { display: block; height: 100%; background: var(--primary); border-radius: 2px; }
+.s-foot { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--on-surface-variant); flex-wrap: wrap; }
+.tag { height: 20px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; background: var(--surface-highest); color: var(--on-surface-variant); }
+.tag.err { background: var(--error-container); color: var(--on-error-container); }
+.tag.ok { background: var(--success-container); color: var(--success); }
+.tag.next { background: var(--primary-container); color: var(--on-primary-container); }
+.tag .ms { font-size: 14px; }
+
+/* Listes (à acheter / sorties) */
+.li { display: flex; align-items: center; gap: 16px; padding: 10px 0; min-height: 72px; }
+.li + .li { border-top: 1px solid var(--outline-variant); }
+.li .cv { width: 40px; }
+.li-body { flex: 1; min-width: 0; }
+.li-t { font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li-s { font-size: 13px; color: var(--on-surface-variant); }
+.li-s.hot { color: var(--error); font-weight: 500; }
+.card { background: var(--surface-low); border-radius: 16px; padding: 4px 16px; }
+.date-tile { width: 48px; flex: none; text-align: center; border-radius: 12px; background: var(--surface-high); padding: 6px 0; }
+.date-tile b { display: block; font-size: 20px; line-height: 24px; font-weight: 500; }
+.date-tile span { font-size: 11px; text-transform: uppercase; color: var(--on-surface-variant); letter-spacing: .06em; }
+.date-tile.soon { background: var(--error-container); color: var(--on-error-container); }
+.date-tile.soon span { color: inherit; }
+.info { display: flex; gap: 12px; align-items: center; background: var(--surface-high); border-radius: 12px; padding: 12px 16px; color: var(--on-surface-variant); font-size: 13px; margin-top: 8px; }
+.info.warn { background: var(--error-container); color: var(--on-error-container); }
+
+/* Détail d'une série */
+.hero { display: flex; gap: 16px; align-items: end; padding: 8px 0 16px; }
+.hero-cv { width: 112px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-highest); display: grid; place-items: center; font-size: 34px; color: var(--on-surface-variant); flex: none; box-shadow: 0 2px 6px rgb(0 0 0 / .15); }
+.hero-txt { min-width: 0; display: grid; gap: 6px; justify-items: start; }
+.hero-txt h2 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 400; text-wrap: balance; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-low); border-radius: 16px; padding: 12px 0; text-align: center; }
+.stats div + div { border-left: 1px solid var(--outline-variant); }
+.stats b { display: block; font-size: 22px; line-height: 28px; font-weight: 500; }
+.stats span { font-size: 12px; color: var(--on-surface-variant); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+.next-card { display: flex; align-items: center; gap: 12px; background: var(--primary-container); color: var(--on-primary-container); border-radius: 16px; padding: 12px 8px 12px 16px; margin-top: 12px; }
+.next-card .grow { flex: 1; min-width: 0; }
+.next-card .icon-btn { color: var(--on-primary-container); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; }
+.tile { border: 0; padding: 0; background: none; display: grid; gap: 4px; text-align: left; min-width: 0; }
+.tile .art { position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: var(--surface-high); display: grid; place-items: center; font-size: 28px; color: var(--on-surface-variant); }
+.tile.miss .art { box-shadow: inset 0 0 0 2px var(--error); }
+.tile.next .art { outline: 2px dashed var(--outline); outline-offset: -2px; background: transparent; }
+.tile.notown .art img { opacity: .55; filter: grayscale(.6); }
+.tile .st { position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); }
+.tile .st .ms { font-size: 16px; }
+.tile .lbl { font-size: 12px; color: var(--on-surface-variant); display: flex; justify-content: space-between; gap: 4px; }
+.tile.miss .lbl { color: var(--error); }
+
+.empty { text-align: center; padding: 48px 16px; color: var(--on-surface-variant); display: grid; gap: 12px; justify-items: center; }
+.empty .ms { font-size: 48px; color: var(--outline); }
+.empty strong { color: var(--on-surface); font-size: 18px; font-weight: 500; }
+
+/* Feuilles et dialogues */
+dialog { border: 0; padding: 0; color: var(--on-surface); background: var(--surface-low); }
+dialog::backdrop { background: var(--scrim); }
+dialog.sheet { margin: auto auto 0; width: 100%; max-width: 640px; border-radius: 28px 28px 0 0; padding: 8px 0 calc(16px + env(safe-area-inset-bottom, 0px)); max-height: 90dvh; }
+.handle { width: 32px; height: 4px; border-radius: 2px; background: var(--outline); opacity: .4; margin: 14px auto 12px; }
+.sheet-head { display: flex; gap: 16px; align-items: center; padding: 0 24px 12px; }
+.sheet-head .cv { width: 48px; }
+.sheet-head h3 { margin: 0; font-size: 22px; font-weight: 400; line-height: 28px; }
+.menu-item { width: 100%; border: 0; background: none; display: flex; align-items: center; gap: 16px; padding: 0 24px; min-height: 56px; font-size: 16px; text-align: left; color: var(--on-surface); text-decoration: none; }
+.menu-item:hover { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.menu-item .ms { color: var(--on-surface-variant); }
+.menu-item.danger, .menu-item.danger .ms { color: var(--error); }
+.paste { margin: 4px 24px 8px; display: flex; align-items: center; gap: 12px; border: 1px dashed var(--outline); border-radius: 12px; padding: 0 12px; height: 52px; color: var(--on-surface-variant); }
+.paste input { flex: 1; border: 0; background: transparent; outline: none; font-size: 15px; min-width: 0; }
+dialog.full { width: 100%; height: 100%; max-width: 100%; max-height: 100%; margin: 0; background: var(--surface); }
+@media (min-width: 700px) { dialog.full { width: 560px; height: auto; max-height: calc(100dvh - 48px); margin: auto; border-radius: 28px; } }
+.full-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 4px; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 8px 4px; background: var(--surface); }
+.full-bar h2 { flex: 1; margin: 0; font-size: 22px; font-weight: 400; }
+form.fields { padding: 8px 24px 32px; display: grid; gap: 20px; }
+.field { position: relative; display: grid; gap: 4px; }
+.field label { position: absolute; left: 12px; top: -9px; padding: 0 4px; background: var(--surface); font-size: 12px; color: var(--on-surface-variant); line-height: 16px; }
+.field input, .field select { height: 56px; border: 1px solid var(--outline); border-radius: 4px; padding: 0 16px; background: var(--surface); font-size: 16px; width: 100%; color: var(--on-surface); }
+.field input:focus, .field select:focus { outline: none; border: 2px solid var(--primary); padding: 0 15px; }
+.field:focus-within label { color: var(--primary); }
+.support { font-size: 12px; color: var(--on-surface-variant); padding: 0 16px; }
+.support.err { color: var(--error); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 16px; }
+.switch { appearance: none; width: 52px; height: 32px; border-radius: 16px; background: var(--surface-highest); border: 2px solid var(--outline); position: relative; flex: none; cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--outline); transition: all .15s; }
+.switch:checked { background: var(--primary); border-color: var(--primary); }
+.switch:checked::after { left: 22px; top: 2px; width: 24px; height: 24px; background: var(--on-primary); }
+.fill-note { font-size: 12px; color: var(--on-surface-variant); margin: -12px 16px 0; }
+dialog.alert { width: min(312px, calc(100vw - 48px)); border-radius: 28px; padding: 24px; background: var(--surface-high); }
+dialog.alert h3 { margin: 0 0 16px; font-size: 24px; font-weight: 400; line-height: 32px; }
+dialog.alert p { margin: 0 0 24px; color: var(--on-surface-variant); }
+dialog.alert .end { display: flex; justify-content: end; gap: 8px; }
+
+.snack { position: fixed; z-index: 10; left: 16px; right: 16px; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); max-width: 560px; margin: 0 auto; background: var(--inverse-surface); color: var(--inverse-on-surface); border-radius: 4px; padding: 14px 16px; font-size: 14px; box-shadow: 0 3px 8px rgb(0 0 0 / .25); }
+dialog .snack { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+@media (prefers-reduced-motion: no-preference) {
+  .view { animation: enter .22s cubic-bezier(.2, 0, 0, 1); }
+  @keyframes enter { from { opacity: .4; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+@media (max-width: 380px) { .row2 { grid-template-columns: 1fr; } .fab span:last-child { display: none; } .fab { padding: 0 16px; } }
+
+html, body { margin: 0; }
+body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="appbar" id="appbar">
+    <button class="icon-btn" type="button" id="backBtn" aria-label="Retour" hidden><span class="ms">arrow_back</span></button>
+    <h1 id="barTitle">Ma mangathèque</h1>
+    <button class="icon-btn" type="button" id="searchBtn" aria-label="Rechercher"><span class="ms">search</span></button>
+    <button class="icon-btn" type="button" id="checkBtn" aria-label="Vérifier les sorties" hidden><span class="ms">sync</span></button>
+    <button class="icon-btn" type="button" id="menuBtn" aria-label="Sauvegarde" hidden><span class="ms">more_vert</span></button>
+    <button class="icon-btn" type="button" id="editBtn" aria-label="Modifier la série" hidden><span class="ms">edit</span></button>
+  </header>
+  <div class="searchbar" id="searchbar" hidden>
+    <span class="ms" style="color:var(--on-surface-variant)">search</span>
+    <input id="search" type="search" placeholder="Chercher une série" aria-label="Chercher une série" autocomplete="off">
+    <button class="icon-btn" type="button" id="searchClose" aria-label="Fermer la recherche"><span class="ms">close</span></button>
+  </div>
+  <main id="main"></main>
+</div>
+
+<button class="fab" type="button" id="fab"><span class="ms">add</span><span>Série</span></button>
+
+<nav class="navbar" aria-label="Navigation principale">
+  <div class="in">
+    <button class="nav-item" type="button" data-tab="shelf" aria-current="page"><span class="pill"><span class="ms">shelves</span></span>Étagère</button>
+    <button class="nav-item" type="button" data-tab="buy"><span class="pill"><span class="ms">shopping_bag</span><span class="badge" id="buyBadge" hidden></span></span>À acheter</button>
+    <button class="nav-item" type="button" data-tab="soon"><span class="pill"><span class="ms">event_upcoming</span></span>Sorties</button>
+  </div>
+</nav>
+
+<!-- Feuille d'actions d'un tome -->
+<dialog class="sheet" id="sheet" aria-label="Actions du tome">
+  <div class="handle"></div>
+  <div id="sheetBody"></div>
+</dialog>
+
+<!-- Formulaire plein écran -->
+<dialog class="full" id="formDlg" aria-labelledby="formTitle">
+  <div class="full-bar">
+    <button class="icon-btn" type="button" id="formClose" aria-label="Fermer"><span class="ms">close</span></button>
+    <h2 id="formTitle">Nouvelle série</h2>
+    <button class="btn text" type="submit" form="form" id="saveBtn">Enregistrer</button>
+  </div>
+  <form class="fields" id="form" novalidate>
+    <div class="field">
+      <label for="f-title">Titre</label>
+      <input id="f-title" maxlength="120" placeholder="One Piece" autocomplete="off">
+    </div>
+    <div class="row2">
+      <div class="field"><label for="f-publisher">Éditeur</label><input id="f-publisher" maxlength="60" placeholder="Glénat"></div>
+      <div class="field"><label for="f-status">Statut</label>
+        <select id="f-status"><option value="ongoing">En cours</option><option value="done">Terminée</option><option value="paused">En pause</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="f-published">Tomes parus en France</label><input id="f-published" type="number" min="0" max="400" inputmode="numeric" placeholder="108"></div>
+      <div class="field"><label for="f-owned">Tomes possédés</label><input id="f-owned" placeholder="1-12, 14" autocomplete="off"><span class="support">Ex. 1-12, 14</span></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="f-nextvol">Prochain tome</label><input id="f-nextvol" type="number" min="1" max="400" inputmode="numeric" placeholder="109"></div>
+      <div class="field"><label for="f-nextdate">Date de sortie</label><input id="f-nextdate" type="date"></div>
+    </div>
+    <div class="field"><label for="f-mn">Fiche Manga-news (facultatif)</label><input id="f-mn" type="url" inputmode="url" placeholder="https://www.manga-news.com/index.php/serie/..." autocomplete="off"><span class="support">Sert à retrouver les couvertures et les sorties si le titre diffère</span></div>
+    <div class="switch-row"><label for="f-pinned">Épingler le prochain tome</label><input class="switch" id="f-pinned" type="checkbox"></div>
+    <p class="support err" id="formErr" hidden></p>
+    <button class="btn text danger" type="button" id="delBtn" hidden><span class="ms">delete</span>Supprimer la série</button>
+  </form>
+</dialog>
+
+<dialog class="alert" id="confirmDlg">
+  <h3>Supprimer la série ?</h3>
+  <p id="confirmTxt"></p>
+  <div class="end"><button class="btn text" type="button" id="confirmNo">Annuler</button><button class="btn text danger" type="button" id="confirmYes">Supprimer</button></div>
+</dialog>
+
+<dialog class="full" id="backupDlg" aria-labelledby="backupTitle">
+  <div class="full-bar">
+    <button class="icon-btn" type="button" id="backupClose" aria-label="Fermer"><span class="ms">close</span></button>
+    <h2 id="backupTitle">Sauvegarde</h2>
+  </div>
+  <div class="fields" style="display:grid;gap:16px;padding:8px 24px 32px">
+    <p class="summary" style="margin:0">Ta collection est enregistrée sur ce téléphone. Copie ce texte pour la sauvegarder ou la transférer, ou colle une sauvegarde pour la restaurer (les couvertures ne sont pas incluses).</p>
+    <textarea id="backupText" rows="10" style="width:100%;border:1px solid var(--outline);border-radius:4px;padding:12px;background:var(--surface);color:var(--on-surface);font:12px/1.4 var(--mono)"></textarea>
+    <div class="actions"><button class="btn tonal" type="button" id="backupCopy"><span class="ms">content_copy</span>Copier</button><button class="btn outlined" type="button" id="backupRestore"><span class="ms">restore</span>Restaurer ce texte</button></div>
+  </div>
+</dialog>
+
+<input type="file" id="coverFile" accept="image/*" hidden>
+<div class="snack" id="snack" role="status" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
