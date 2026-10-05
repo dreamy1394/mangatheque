@@ -241,11 +241,44 @@ async function bnfSearch(title) {
     .slice(0, 6);
 }
 // Vérifie dans le catalogue si de nouveaux tomes sont parus pour chaque série en cours.
+// Planning des sorties : préparé chaque lundi depuis Manga-news et publié dans le dépôt GitHub de l'appli.
+// Le téléphone ne lit que ce fichier, jamais Manga-news directement.
+const PLANNING = "https://raw.githubusercontent.com/dreamy1394/mangatheque/main/data/releases.json";
+async function applyPlanning() {
+  const data = JSON.parse(await getText(PLANNING + "?t=" + Date.now()));
+  if (!data || !Array.isArray(data.items)) throw new Error("planning invalide");
+  const byKey = new Map();
+  for (const it of data.items) { const k = norm(it.t); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(it); }
+  const today = todayISO(), found = [];
+  for (const orig of state.series) {
+    if (orig.status === "dropped" || orig.status === "done") continue;
+    const items = byKey.get(norm(orig.title)) || (orig.bnfKey && byKey.get(orig.bnfKey)) || [];
+    if (!items.length) continue;
+    const s = clone(orig), owned = new Set(s.owned || []);
+    let changed = false;
+    const out = items.filter((it) => it.d <= today).map((it) => it.v);
+    if (out.length && Math.max(...out) > (s.published || 0)) { s.published = Math.max(...out); changed = true; }
+    const next = items.filter((it) => it.d > today && !owned.has(it.v) && it.v > (s.published || 0)).sort((a, b) => a.v - b.v)[0];
+    if (next) {
+      const keepManual = s.next && s.next.source === "saisie" && s.next.vol !== next.v && s.next.date;
+      if (!keepManual && (!s.next || s.next.vol !== next.v || s.next.date !== next.d)) {
+        if (!s.next || s.next.vol !== next.v) { s.pinned = false; found.push(`${s.title} t.${next.v} le ${fmtDate(next.d)}`); }
+        s.next = { vol: next.v, date: next.d, source: "Manga-news" };
+        changed = true;
+      }
+    } else if (s.next && s.next.vol <= (s.published || 0)) { s.next = null; s.pinned = false; changed = true; }
+    if (changed) { s.updatedAt = new Date().toISOString(); state.series[state.series.findIndex((x) => x.id === s.id)] = s; }
+  }
+  state.meta = { ...state.meta, planningAt: data.updatedAt };
+  return found;
+}
 async function checkReleases({ silent } = {}) {
   if (state.checking) return;
   state.checking = true; render();
   let changes = 0, errors = 0;
   const found = [];
+  let announced = [];
+  try { announced = await applyPlanning(); } catch {}
   for (const orig of state.series.filter((s) => (s.status || "ongoing") === "ongoing")) {
     try {
       const key = orig.bnfKey || norm(orig.title);
@@ -263,7 +296,8 @@ async function checkReleases({ silent } = {}) {
   state.meta = { ...state.meta, checkedAt: new Date().toISOString(), source: "BnF" };
   await persist();
   state.checking = false; render(); scheduleNotifications();
-  if (changes) snack(`Nouveau${changes > 1 ? "x" : ""} tome${changes > 1 ? "s" : ""} paru${changes > 1 ? "s" : ""} : ${found.join(", ")}`);
+  if (announced.length) snack(`Annoncé : ${announced.join(", ")}`, 8000);
+  else if (changes) snack(`Nouveau${changes > 1 ? "x" : ""} tome${changes > 1 ? "s" : ""} paru${changes > 1 ? "s" : ""} : ${found.join(", ")}`);
   else if (!silent) snack("Aucun nouveau tome paru depuis la dernière vérification.");
 }
 
@@ -409,7 +443,7 @@ function buyView(views) {
 }
 function soonView(views) {
   const m = state.meta;
-  let html = `<div class="info">${icon(state.checking ? "hourglass_top" : "sync")}<span>${state.checking ? "Recherche de nouveaux tomes dans le catalogue de la BnF…" : `${m && m.checkedAt ? `Nouveaux tomes vérifiés le ${new Date(m.checkedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}. ` : ""}Touche ⟳ pour chercher les tomes parus. Les dates à venir se saisissent dans la fiche de la série.`}</span></div>`;
+  let html = `<div class="info">${icon(state.checking ? "hourglass_top" : "sync")}<span>${state.checking ? "Mise à jour du planning et recherche des tomes parus…" : `Dates de sortie issues du planning Manga-news${m && m.planningAt ? `, mis à jour le ${new Date(m.planningAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}` : ""} (chaque lundi). Les séries dont le titre diffère de Manga-news restent à saisir dans leur fiche. Touche ⟳ pour actualiser.`}</span></div>`;
   const up = views.filter((v) => v.upcoming).sort((a, b) => (a.upcoming.date || "9999").localeCompare(b.upcoming.date || "9999"));
   if (!up.length) html += `<div class="empty">${icon("event_busy")}<strong>Aucune sortie annoncée</strong><span>Les prochains tomes de tes séries en cours apparaîtront ici.</span></div>`;
   let month = null;
@@ -801,6 +835,7 @@ load().then(() => {
   render(); scheduleNotifications();
   const last = state.meta && state.meta.checkedAt ? new Date(state.meta.checkedAt) : null;
   if (Capacitor.isNativePlatform() && (!last || Date.now() - last > 3 * 86400000)) checkReleases({ silent: true });
+  else applyPlanning().then(async (found) => { await persist(); render(); scheduleNotifications(); if (found.length) snack(`Annoncé : ${found.join(", ")}`, 8000); }).catch(() => {});
   bundledImports();
   // Rappel discret, au plus une fois par semaine, si aucune sauvegarde n'a été envoyée depuis 30 jours.
   const old = (iso, days) => !iso || Date.now() - new Date(iso) > days * 86400000;
