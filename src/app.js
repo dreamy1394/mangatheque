@@ -17,7 +17,7 @@ const daysUntil = (iso) => Math.round((new Date(iso + "T00:00:00") - new Date(to
 const fmtDate = (iso, opts) => new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", opts || { day: "numeric", month: "short" });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icon = (n, fill) => `<span class="ms${fill ? " fill" : ""}" aria-hidden="true">${n}</span>`;
-const statusLabel = (s) => ({ ongoing: "En cours", done: "Terminée", paused: "En pause" }[s || "ongoing"]);
+const statusLabel = (s) => ({ ongoing: "En cours", done: "Terminée", paused: "En pause", dropped: "Abandonnée" }[s || "ongoing"]);
 const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/\((les|le|la|l')\)\s*$/, "").replace(/^(les|le|la|l')\s*/, "").replace(/&/g, " et ").replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -47,11 +47,16 @@ function view(s) {
   const next = s.next && s.next.vol ? s.next : null;
   const nextOut = next && next.date && daysUntil(next.date) <= 0;
   const published = Math.max(s.published || 0, nextOut ? next.vol : 0);
+  // Une série abandonnée n'a plus de tomes « manquants » ni de sorties à suivre.
+  const dropped = s.status === "dropped";
   const missing = [];
-  for (let i = 1; i <= published; i++) if (!owned.has(i)) missing.push(i);
-  const upcoming = next && !nextOut && !owned.has(next.vol) ? next : null;
+  if (!dropped) for (let i = 1; i <= published; i++) if (!owned.has(i)) missing.push(i);
+  const upcoming = !dropped && next && !nextOut && !owned.has(next.vol) ? next : null;
   const read = new Set(s.read || []), toRead = [...owned].filter((i) => !read.has(i)).sort((a, b) => a - b);
-  return { s, owned, read, toRead, published, missing, upcoming, total: Math.max(published, upcoming ? upcoming.vol : 0, ...owned) };
+  // Liste d'achats : seulement les tomes que Tanguy y a mis lui-même.
+  const wish = dropped ? [] : [...new Set(s.wish || [])].filter((i) => !owned.has(i)).sort((a, b) => a - b);
+  const unplanned = missing.filter((i) => !wish.includes(i));
+  return { s, owned, read, toRead, published, missing, wish, unplanned, dropped, upcoming, total: Math.max(published, upcoming ? upcoming.vol : 0, ...owned) };
 }
 const find = (id) => state.series.find((s) => s.id === id);
 const clone = (s) => JSON.parse(JSON.stringify(s));
@@ -303,9 +308,16 @@ async function setOwned(s0, vol, own) {
   s.owned = [...set].sort((x, y) => x - y);
   if (own && vol > (s.published || 0)) s.published = vol;
   if (own && s.next && s.next.vol === vol) { s.next = null; s.pinned = false; }
+  if (own && s.wish) s.wish = s.wish.filter((i) => i !== vol);
   await upsert(s, own ? `${s.title} t.${vol} ajouté à l'étagère` : `${s.title} t.${vol} retiré`);
 }
 
+async function setWish(s0, vols, on) {
+  const s = clone(s0), set = new Set(s.wish || []);
+  for (const v of vols) on ? set.add(v) : set.delete(v);
+  s.wish = [...set].sort((x, y) => x - y);
+  await upsert(s, vols.length > 1 ? `${vols.length} tomes ajoutés à ta liste d'achats` : `${s.title} t.${vols[0]} ${on ? "ajouté à" : "retiré de"} ta liste d'achats`);
+}
 async function setRead(s0, vols, read) {
   const s = clone(s0), set = new Set(s.read || []);
   for (const v of vols) read ? set.add(v) : set.delete(v);
@@ -317,11 +329,14 @@ async function setRead(s0, vols, read) {
 function seriesCard(v) {
   const s = v.s, pct = v.published ? Math.round((v.owned.size / Math.max(v.published, v.owned.size)) * 100) : 0;
   let tag = "";
-  if (v.missing.length) tag = `<span class="tag err">${v.missing.length} manquant${v.missing.length > 1 ? "s" : ""}</span>`;
+  if (s.status === "dropped") tag = `<span class="tag muted">${icon("block")}Abandonnée</span>`;
+  else if (v.missing.length) tag = `<span class="tag err">${v.missing.length} manquant${v.missing.length > 1 ? "s" : ""}</span>`;
+  else if (s.status === "done" && v.owned.size) tag = `<span class="tag ok">${icon("verified")}Terminée, complète</span>`;
+  else if (v.toRead.length) tag = `<span class="tag">${icon("auto_stories")}${v.toRead.length} à lire</span>`;
   else if (v.owned.size) tag = `<span class="tag ok">${icon("check")}À jour</span>`;
-  if (v.toRead.length && !v.missing.length) tag = `<span class="tag">${icon("auto_stories")}${v.toRead.length} à lire</span>`;
+  if (s.status === "done" && v.missing.length) tag = `<span class="tag done">${icon("flag")}Terminée</span>` + tag;
   const nextTag = v.upcoming && v.upcoming.date ? `<span class="tag next">${icon("event")}t.${v.upcoming.vol} · ${fmtDate(v.upcoming.date)}</span>` : "";
-  return `<div class="s-card" role="button" tabindex="0" data-act="open" data-id="${esc(s.id)}">
+  return `<div class="s-card ${v.dropped ? "dropped" : ""}" role="button" tabindex="0" data-act="open" data-id="${esc(s.id)}">
     ${cvHtml(v)}
     <div class="s-body">
       <div class="s-t">${esc(s.title)}</div>
@@ -338,16 +353,18 @@ function matches(v) {
   if (state.filter === "toread") return v.toRead.length > 0;
   if (state.filter === "ongoing") return (v.s.status || "ongoing") === "ongoing";
   if (state.filter === "done") return v.s.status === "done";
+  if (state.filter === "dropped") return v.dropped;
   return true;
 }
 function shelfView(views) {
   if (!state.loaded) return `<div class="empty">${icon("hourglass_empty")}<span>Chargement…</span></div>`;
   const tomes = views.reduce((n, v) => n + v.owned.size, 0), toRead = views.reduce((n, v) => n + v.toRead.length, 0);
-  const chips = [["all", "Toutes"], ["missing", "À compléter"], ["toread", "À lire"], ["ongoing", "En cours"], ["done", "Terminées"]]
+  const chips = [["all", "Toutes"], ["missing", "À compléter"], ["toread", "À lire"], ["ongoing", "En cours"], ["done", "Terminées"], ["dropped", "Abandonnées"]]
     .map(([k, l]) => `<button class="chip" type="button" data-act="filter" data-f="${k}" aria-pressed="${state.filter === k}">${state.filter === k ? icon("check") : ""}${l}</button>`).join("");
   let html = `<p class="summary"><span><b class="num">${views.length}</b> série${views.length > 1 ? "s" : ""}</span><span><b class="num">${tomes}</b> tome${tomes > 1 ? "s" : ""}</span>${toRead ? `<span><b class="num">${toRead}</b> à lire</span>` : ""}</p><div class="chips" role="group" aria-label="Filtrer">${chips}</div>`;
   if (!views.length) return html + `<div class="empty">${icon("auto_stories")}<strong>Ton étagère est vide</strong><span>Ajoute ta première série avec le bouton « Série ».</span></div>`;
   const shown = views.filter(matches).sort((a, b) =>
+    a.dropped - b.dropped ||
     (b.missing.length > 0) - (a.missing.length > 0) ||
     ((a.upcoming && a.upcoming.date) || "9999").localeCompare((b.upcoming && b.upcoming.date) || "9999") ||
     a.s.title.localeCompare(b.s.title, "fr"));
@@ -362,24 +379,32 @@ function releaseItem(v) {
     <button class="icon-btn ${v.s.pinned ? "on" : ""}" type="button" data-act="pin" data-id="${esc(v.s.id)}" aria-pressed="${!!v.s.pinned}" aria-label="${v.s.pinned ? "Désépingler" : "Épingler et me prévenir"}">${icon("push_pin", v.s.pinned)}</button></div>`;
 }
 function buyView(views) {
-  const now = views.filter((v) => v.missing.length).sort((a, b) => a.s.title.localeCompare(b.s.title, "fr"));
+  const now = views.filter((v) => v.wish.length).sort((a, b) => a.s.title.localeCompare(b.s.title, "fr"));
+  const others = views.filter((v) => v.unplanned.length).sort((a, b) => a.s.title.localeCompare(b.s.title, "fr"));
   const pinned = views.filter((v) => v.upcoming && v.s.pinned).sort((a, b) => (a.upcoming.date || "9999").localeCompare(b.upcoming.date || "9999"));
-  const nMiss = now.reduce((n, v) => n + v.missing.length, 0), costMiss = now.reduce((n, v) => n + v.missing.length * priceOf(v.s), 0);
+  const nWish = now.reduce((n, v) => n + v.wish.length, 0), costWish = now.reduce((n, v) => n + v.wish.length * priceOf(v.s), 0);
   const costPinned = pinned.reduce((n, v) => n + priceOf(v.s), 0);
   const soon30 = views.filter((v) => v.upcoming && v.upcoming.date && daysUntil(v.upcoming.date) <= 30);
   const cost30 = soon30.reduce((n, v) => n + priceOf(v.s), 0);
-  let html = `<div class="budget"><div><b class="num">${euros(costMiss)}</b><span>pour rattraper ${nMiss} tome${nMiss > 1 ? "s" : ""} manquant${nMiss > 1 ? "s" : ""}</span></div>
+  let html = `<div class="budget"><div><b class="num">${euros(costWish)}</b><span>${nWish} tome${nWish > 1 ? "s" : ""} dans ta liste</span></div>
     <div><b class="num">${euros(cost30)}</b><span>${soon30.length} sortie${soon30.length > 1 ? "s" : ""} dans les 30 jours</span></div></div>
     <div class="paste price-row">${icon("sell")}<label for="defPrice">Prix d'un tome par défaut</label><input id="defPrice" type="number" inputmode="decimal" step="0.01" min="0" value="${priceOf({})}"><span>€</span></div>
     <p class="summary">Le prix d'une série précise se règle dans sa fiche (Modifier).</p>
-    <div class="section-title">En librairie <span>${nMiss} tome(s) · ${euros(costMiss)}</span></div>`;
+    <div class="section-title">Ma liste d'achats <span>${nWish} tome(s) · ${euros(costWish)}</span></div>`;
   html += now.length ? `<div class="card">${now.map((v) => {
-    const first = v.missing[0];
-    return `<div class="li">${cvHtml(v)}<div class="li-body" data-act="open" data-id="${esc(v.s.id)}" role="button" tabindex="0"><div class="li-t">${esc(v.s.title)}</div><div class="li-s num">Tome${v.missing.length > 1 ? "s" : ""} ${esc(formatOwned(v.missing))} · ${euros(v.missing.length * priceOf(v.s))}</div></div>
-      <button class="btn tonal small" type="button" data-act="buy" data-id="${esc(v.s.id)}" data-vol="${first}">${icon("check")}t.${first}</button></div>`;
-  }).join("")}</div>` : `<div class="info">${icon("task_alt")}<span>Rien en retard : toutes tes séries sont à jour.</span></div>`;
+    const first = v.wish[0];
+    return `<div class="li">${cvHtml(v)}<div class="li-body" data-act="open" data-id="${esc(v.s.id)}" role="button" tabindex="0"><div class="li-t">${esc(v.s.title)}</div><div class="li-s num">Tome${v.wish.length > 1 ? "s" : ""} ${esc(formatOwned(v.wish))} · ${euros(v.wish.length * priceOf(v.s))}</div></div>
+      <button class="btn tonal small" type="button" data-act="buy" data-id="${esc(v.s.id)}" data-vol="${first}" aria-label="J'ai acheté le tome ${first}">${icon("check")}t.${first}</button></div>`;
+  }).join("")}</div>` : `<div class="info">${icon("add_shopping_cart")}<span>Ta liste est vide. Ajoute un tome depuis la fiche d'une série (touche le tome), ou depuis les tomes manquants ci-dessous.</span></div>`;
   html += `<div class="section-title">Épinglés <span>${pinned.length ? euros(costPinned) + " · " : ""}notification le jour J</span></div>`;
   html += pinned.length ? `<div class="card">${pinned.map(releaseItem).join("")}</div>` : `<div class="info">${icon("push_pin")}<span>Épingle une sortie depuis l'onglet Sorties : tu recevras une notification le jour J.</span></div>`;
+  if (others.length) {
+    const n = others.reduce((k, v) => k + v.unplanned.length, 0);
+    html += `<div class="section-title">Autres tomes manquants <span>${n} tome(s), hors de ta liste</span></div><div class="card">${others.map((v) =>
+      `<div class="li">${cvHtml(v)}<div class="li-body" data-act="open" data-id="${esc(v.s.id)}" role="button" tabindex="0"><div class="li-t">${esc(v.s.title)}</div><div class="li-s num">Tome${v.unplanned.length > 1 ? "s" : ""} ${esc(formatOwned(v.unplanned))}</div></div>
+      <button class="icon-btn" type="button" data-act="wishall" data-id="${esc(v.s.id)}" aria-label="Ajouter ces tomes à ma liste d'achats">${icon("add_shopping_cart")}</button></div>`).join("")}</div>
+      <p class="summary">Touche une série pour choisir les tomes un par un, ou passe-la en « Abandonnée » pour ne plus la voir ici.</p>`;
+  }
   return html;
 }
 function soonView(views) {
@@ -417,13 +442,13 @@ function detailView() {
   if (v.upcoming) html += `<div class="next-card">${icon("event_upcoming")}<div class="grow"><div style="font-weight:500">Tome ${v.upcoming.vol}</div><div style="font-size:13px">${v.upcoming.date ? fmtDate(v.upcoming.date, { weekday: "long", day: "numeric", month: "long" }) : "Date non annoncée"}</div></div>
     <button class="icon-btn" type="button" data-act="pin" data-id="${esc(s.id)}" aria-pressed="${!!s.pinned}" aria-label="${s.pinned ? "Désépingler" : "Épingler et me prévenir"}">${icon("push_pin", s.pinned)}</button></div>`;
   html += `<div class="actions"><button class="btn filled" type="button" data-act="plus" data-id="${esc(s.id)}">${icon("add")}J'ai le tome ${nextToBuy(s)}</button><button class="btn outlined" type="button" data-act="edit" data-id="${esc(s.id)}">${icon("edit")}Modifier</button></div>`;
-  html += `<div class="section-title">Tomes${v.toRead.length > 1 ? `<button class="btn text small" type="button" data-act="readall" data-id="${esc(s.id)}">${icon("done_all")}Tout marquer comme lu</button>` : ""}</div><p class="summary">Touche un tome pour le cocher, le marquer comme lu ou changer sa couverture.</p><div class="tiles">`;
+  html += `<div class="section-title">Tomes${v.toRead.length > 1 ? `<button class="btn text small" type="button" data-act="readall" data-id="${esc(s.id)}">${icon("done_all")}Tout marquer comme lu</button>` : ""}</div><p class="summary">Touche un tome pour le cocher, le mettre dans ta liste d'achats, le marquer comme lu ou changer sa couverture.</p>${v.unplanned.length > 1 ? `<div class="actions" style="margin-top:0"><button class="btn outlined small" type="button" data-act="wishall" data-id="${esc(s.id)}">${icon("add_shopping_cart")}Mettre les ${v.unplanned.length} tomes manquants dans ma liste</button></div>` : ""}<div class="tiles">`;
   for (let i = 1; i <= Math.max(v.total, 1); i++) {
-    const own = v.owned.has(i), isNext = v.upcoming && v.upcoming.vol === i, miss = !own && !isNext && i <= v.published;
+    const own = v.owned.has(i), isNext = v.upcoming && v.upcoming.vol === i, miss = !own && !isNext && !v.dropped && i <= v.published, wished = v.wish.includes(i);
     const img = covers[i] && imgTag(covers[i]);
     const isRead = own && v.read.has(i);
-    const lbl = own ? (isRead ? "Lu" : "À lire") : isNext ? (v.upcoming.date ? fmtDate(v.upcoming.date) : "Annoncé") : miss ? "Manquant" : "";
-    html += `<button class="tile ${miss ? "miss" : ""} ${isNext ? "next" : ""} ${!own ? "notown" : ""}" type="button" data-act="tome" data-vol="${i}" aria-label="Tome ${i}, ${own ? "possédé, " : ""}${lbl || "non paru"}">
+    const lbl = own ? (isRead ? "Lu" : "À lire") : isNext ? (v.upcoming.date ? fmtDate(v.upcoming.date) : "Annoncé") : wished ? "À acheter" : miss ? "Manquant" : "";
+    html += `<button class="tile ${miss ? "miss" : ""} ${wished ? "wish" : ""} ${isNext ? "next" : ""} ${!own ? "notown" : ""}" type="button" data-act="tome" data-vol="${i}" aria-label="Tome ${i}, ${own ? "possédé, " : ""}${lbl || "non paru"}">
       <div class="art">${img || `<span class="num">${i}</span>`}${own ? `<span class="st ${isRead ? "read" : ""}">${icon(isRead ? "done_all" : "check")}</span>` : ""}</div>
       <span class="lbl"><span class="num">t.${i}</span><span>${lbl}</span></span></button>`;
   }
@@ -432,10 +457,11 @@ function detailView() {
 function sheetView() {
   const s = find(state.detailId), i = state.sheetVol;
   if (!s || !i) return "";
-  const v = view(s), file = (s.covers || {})[i], own = v.owned.has(i), isRead = v.read.has(i);
+  const v = view(s), file = (s.covers || {})[i], own = v.owned.has(i), isRead = v.read.has(i), wished = v.wish.includes(i);
   const q = encodeURIComponent(`${s.title} tome ${i} ${s.publisher || ""} manga couverture`);
   return `<div class="sheet-head"><div class="cv">${(file && imgTag(file)) || i}</div><div><h3>Tome ${i}</h3><div class="s-sub">${esc(s.title)}${state.busyVol === i ? " · enregistrement de la couverture…" : ""}</div></div></div>
     <button class="menu-item" type="button" data-act="s-own">${icon(own ? "remove_done" : "check_circle")}${own ? "Retirer de mon étagère" : "Je l'ai"}</button>
+    ${!own && !v.dropped ? `<button class="menu-item" type="button" data-act="s-wish">${icon(wished ? "remove_shopping_cart" : "add_shopping_cart")}${wished ? "Retirer de ma liste d'achats" : "Ajouter à ma liste d'achats"}</button>` : ""}
     ${own ? `<button class="menu-item" type="button" data-act="s-read">${icon(isRead ? "visibility_off" : "done_all")}${isRead ? "Marquer comme non lu" : "Marquer comme lu"}</button>` : ""}
     <button class="menu-item" type="button" data-act="s-file">${icon("add_photo_alternate")}${file ? "Changer la couverture (photo ou image)" : "Ajouter une couverture (photo ou image)"}</button>
     <div class="paste">${icon("link")}<input id="urlZone" type="url" inputmode="url" placeholder="Colle le lien d'une image" aria-label="Lien de l'image de couverture" autocomplete="off"><button class="btn text small" type="button" data-act="s-url">OK</button></div>
@@ -459,7 +485,7 @@ function render() {
   $("barTitle").textContent = inDetail ? (find(state.detailId)?.title || "") : { shelf: "Ma mangathèque", buy: "À acheter", soon: "Prochaines sorties" }[state.tab];
   $("fab").hidden = inDetail;
   for (const b of document.querySelectorAll(".nav-item")) b.setAttribute("aria-current", !inDetail && b.dataset.tab === state.tab ? "page" : "false");
-  const nBuy = views.reduce((n, v) => n + v.missing.length, 0);
+  const nBuy = views.reduce((n, v) => n + v.wish.length, 0);
   $("buyBadge").hidden = !nBuy; $("buyBadge").textContent = nBuy > 99 ? "99+" : nBuy;
   const html = inDetail ? detailView() : state.tab === "buy" ? buyView(views) : state.tab === "soon" ? soonView(views) : shelfView(views);
   const key = inDetail ? "d:" + state.detailId : state.tab, main = $("main");
@@ -502,6 +528,7 @@ $("main").addEventListener("click", async (ev) => {
   }
   if (act === "edit") openForm(s);
   if (act === "tome") openSheet(vol);
+  if (act === "wishall") setWish(s, view(s).unplanned, true);
   if (act === "readall") setRead(s, view(s).toRead, true);
 });
 $("main").addEventListener("change", async (e) => {
@@ -521,6 +548,7 @@ $("sheet").addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const s = find(state.detailId), i = state.sheetVol; if (!s || !i) return;
   if (el.dataset.act === "s-own") { closeSheet(); setOwned(s, i, !(s.owned || []).includes(i)); }
+  if (el.dataset.act === "s-wish") { closeSheet(); setWish(s, [i], !view(s).wish.includes(i)); }
   if (el.dataset.act === "s-read") { closeSheet(); setRead(s, [i], !(s.read || []).includes(i)); }
   if (el.dataset.act === "s-file") $("coverFile").click();
   if (el.dataset.act === "s-url") coverFromUrl(i);

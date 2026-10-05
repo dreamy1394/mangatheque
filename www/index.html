@@ -174,6 +174,11 @@ button { cursor: pointer; }
 #scanBody .found b { font-size: 18px; font-weight: 500; }
 .tile .lbl { font-size: 12px; color: var(--on-surface-variant); display: flex; justify-content: space-between; gap: 4px; }
 .tile.miss .lbl { color: var(--error); }
+.tile.wish .art { box-shadow: inset 0 0 0 2px var(--primary); }
+.tile.wish .lbl { color: var(--primary); }
+.tag.muted { background: var(--surface-high); color: var(--on-surface-variant); }
+.tag.done { background: var(--secondary-container, var(--surface-high)); color: var(--on-secondary-container, var(--on-surface)); }
+.s-card.dropped { opacity: .6; }
 
 .empty { text-align: center; padding: 48px 16px; color: var(--on-surface-variant); display: grid; gap: 12px; justify-items: center; }
 .empty .ms { font-size: 48px; color: var(--outline); }
@@ -289,7 +294,7 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
     <div class="row2">
       <div class="field"><label for="f-publisher">Éditeur</label><input id="f-publisher" maxlength="60" placeholder="Glénat"></div>
       <div class="field"><label for="f-status">Statut</label>
-        <select id="f-status"><option value="ongoing">En cours</option><option value="done">Terminée</option><option value="paused">En pause</option></select>
+        <select id="f-status"><option value="ongoing">En cours</option><option value="done">Terminée</option><option value="paused">En pause</option><option value="dropped">Abandonnée</option></select>
       </div>
     </div>
     <div class="row2">
