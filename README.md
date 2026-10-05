@@ -11,8 +11,12 @@ Application Android pour suivre sa collection de mangas : tomes possédés, tome
 ## Fonctionnement
 
 - Les données et couvertures sont enregistrées sur le téléphone (menu ⋮ de l'Étagère pour sauvegarder ou restaurer).
-- Les sorties sont lues sur le planning de [Manga-news](https://www.manga-news.com/index.php/planning) (3 mois) : au lancement si la dernière vérification date de plus de 3 jours, ou avec le bouton ⟳ de l'onglet Sorties. Les couvertures des tomes annoncés sont récupérées au passage.
+- « Compléter automatiquement » et la détection des nouveaux tomes parus s'appuient sur l'[API SRU du catalogue de la BnF](https://www.bnf.fr/fr/api-et-jeux-de-donnees) (titre, éditeur, auteur, dessinateur, nombre de tomes). Manga-news et Nautiljon bloquent les applis. Les dates à venir se saisissent à la main.
 - Une sortie épinglée déclenche une notification à 9 h le jour de sa sortie.
+
+## Import CSV
+
+Menu ⋮ de l'Étagère > « Choisir un fichier CSV ». Une ligne par tome possédé : `titre ; numéro du tome ; lien de l'image de couverture ; auteur ; dessinateur` (virgule ou point-virgule, en-tête facultatif). Modèle : [`modele-import.csv`](modele-import.csv).
 
 ## Développement
 

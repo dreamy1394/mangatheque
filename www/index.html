@@ -202,6 +202,8 @@ form.fields { padding: 8px 24px 32px; display: grid; gap: 20px; }
 .switch:checked::after { left: 22px; top: 2px; width: 24px; height: 24px; background: var(--on-primary); }
 .fill-note { font-size: 12px; color: var(--on-surface-variant); margin: -12px 16px 0; }
 #bnfResults:empty { display: none; }
+.credits { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--on-surface-variant); }
+.credits b { color: var(--on-surface); font-weight: 500; }
 .pick { width: 100%; border: 0; background: none; text-align: left; display: flex; gap: 12px; align-items: center; padding: 10px 8px; color: var(--on-surface); }
 .pick + .pick { border-top: 1px solid var(--outline-variant); }
 .pick .ms { color: var(--primary); }
@@ -230,7 +232,7 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
     <h1 id="barTitle">Ma mangathèque</h1>
     <button class="icon-btn" type="button" id="searchBtn" aria-label="Rechercher"><span class="ms">search</span></button>
     <button class="icon-btn" type="button" id="checkBtn" aria-label="Vérifier les sorties" hidden><span class="ms">sync</span></button>
-    <button class="icon-btn" type="button" id="menuBtn" aria-label="Sauvegarde" hidden><span class="ms">more_vert</span></button>
+    <button class="icon-btn" type="button" id="menuBtn" aria-label="Import et sauvegarde" hidden><span class="ms">more_vert</span></button>
     <button class="icon-btn" type="button" id="editBtn" aria-label="Modifier la série" hidden><span class="ms">edit</span></button>
   </header>
   <div class="searchbar" id="searchbar" hidden>
@@ -279,6 +281,10 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
       </div>
     </div>
     <div class="row2">
+      <div class="field"><label for="f-author">Auteur (scénario)</label><input id="f-author" maxlength="80" placeholder="Kanehito Yamada" autocomplete="off"></div>
+      <div class="field"><label for="f-artist">Dessinateur</label><input id="f-artist" maxlength="80" placeholder="Tsukasa Abe" autocomplete="off"></div>
+    </div>
+    <div class="row2">
       <div class="field"><label for="f-published">Tomes parus en France</label><input id="f-published" type="number" min="0" max="400" inputmode="numeric" placeholder="108"></div>
       <div class="field"><label for="f-owned">Tomes possédés</label><input id="f-owned" placeholder="1-12, 14" autocomplete="off"><span class="support">Ex. 1-12, 14</span></div>
     </div>
@@ -301,9 +307,15 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
 <dialog class="full" id="backupDlg" aria-labelledby="backupTitle">
   <div class="full-bar">
     <button class="icon-btn" type="button" id="backupClose" aria-label="Fermer"><span class="ms">close</span></button>
-    <h2 id="backupTitle">Sauvegarde</h2>
+    <h2 id="backupTitle">Import et sauvegarde</h2>
   </div>
   <div class="fields" style="display:grid;gap:16px;padding:8px 24px 32px">
+    <div class="section-title" style="margin:0">Importer un fichier CSV</div>
+    <p class="summary" style="margin:0">Une ligne par tome possédé, colonnes : <b>titre ; numéro du tome ; lien de l'image de couverture ; auteur ; dessinateur</b>. Séparateur virgule ou point-virgule, ligne d'en-tête facultative. Les séries existantes sont complétées, les autres créées.</p>
+    <div class="actions" style="margin:0"><button class="btn filled" type="button" id="csvBtn"><span class="ms">upload_file</span>Choisir un fichier CSV</button></div>
+    <p class="summary" id="csvStatus" hidden style="margin:0;color:var(--on-surface)"></p>
+    <input type="file" id="csvFile" accept=".csv,text/csv,text/plain,text/comma-separated-values,application/vnd.ms-excel" hidden>
+    <div class="section-title" style="margin:8px 0 0">Sauvegarde complète</div>
     <p class="summary" style="margin:0">Ta collection est enregistrée sur ce téléphone. Copie ce texte pour la sauvegarder ou la transférer, ou colle une sauvegarde pour la restaurer (les couvertures ne sont pas incluses).</p>
     <textarea id="backupText" rows="10" style="width:100%;border:1px solid var(--outline);border-radius:4px;padding:12px;background:var(--surface);color:var(--on-surface);font:12px/1.4 var(--mono)"></textarea>
     <div class="actions"><button class="btn tonal" type="button" id="backupCopy"><span class="ms">content_copy</span>Copier</button><button class="btn outlined" type="button" id="backupRestore"><span class="ms">restore</span>Restaurer ce texte</button></div>

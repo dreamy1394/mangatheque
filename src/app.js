@@ -177,6 +177,27 @@ function parseVolumeTitle(raw) {
   const base = m[1].replace(/\s*[-.:]\s*$/, "").trim();
   return base ? { base, vol: +m[2] } : null;
 }
+// « Yamada, Kanehito. Auteur du texte » -> « Kanehito Yamada »
+const flipName = (n) => { const m = String(n || "").replace(/\s*\(.*?\)\s*/g, " ").trim().match(/^([^,]+),\s*(.+)$/); return (m ? `${m[2]} ${m[1]}` : String(n || "")).replace(/\.\.\.$/, "").trim(); };
+// Mentions de responsabilité : « scénario, Kanehito Yamada ; dessin, Tsukasa Abe » ou « Eiichiro Oda »
+function parseCredits(rawTitle, creators, contributors) {
+  let author = "", artist = "";
+  const stmt = String(rawTitle || "").split(" / ").slice(1).join(" / ");
+  for (const part0 of stmt.split(/\s*;\s*/)) {
+    const part = part0.replace(/\[.*?\]/g, "").replace(/\.\.\.$/, "").replace(/\.\s*\d+\s*$/, "").trim();
+    let m;
+    if ((m = part.match(/^(?:scénar(?:io|iste)|scenar(?:io|iste)|texte|récit|story|auteure?)\s*[,:]\s*(.+)$/i))) author ||= m[1];
+    else if ((m = part.match(/^(?:dessin(?:s|ateur|atrice)?|illustrat(?:ions?|eur|rice)|art)\s*[,:]\s*(.+)$/i))) artist ||= m[1];
+    else if ((m = part.match(/^(?:(?:une\s+)?(?:œuvre|oeuvre)\s+de|par|de)\s+(.+)$/i)) && !author) { author = m[1]; artist ||= m[1]; }
+    else if (!author && !artist && part && !/trad|adapt|couleur|lettrage|original|réal|d'après/i.test(part) && part.split(" ").length <= 4) { author = part; artist = part; }
+  }
+  const stripRole = (x) => flipName(x.replace(/\.\s+(?:auteur|illustrat|dessinat|scénar|traduct|adaptat)[^.]*$/i, ""));
+  if (!author) { const c = creators.find((x) => /auteur|scénariste|texte/i.test(x)) || creators[0]; if (c) author = stripRole(c); }
+  if (!artist) { const c = [...creators, ...contributors].find((x) => /illustrat|dessinat/i.test(x)); if (c) artist = stripRole(c); }
+  if (!artist && creators.length === 1 && !contributors.some((x) => /illustrat|dessin/i.test(x)) && !/texte/i.test(creators[0])) artist = author;
+  return { author: author.trim(), artist: artist.trim() };
+}
+const topOf = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
 async function bnfSearch(title) {
   const q = `bib.title all "${title.replace(/"/g, " ")}" and bib.doctype any "a"`;
   const url = `${BNF}?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(q)}&recordSchema=dublincore&maximumRecords=200`;
@@ -190,7 +211,10 @@ async function bnfSearch(title) {
     const pv = parseVolumeTitle(get("title")[0]);
     if (!pv) continue;
     const key = norm(pv.base);
-    const g = groups.get(key) || { key, title: pv.base, vols: new Set(), publishers: {}, lastYear: 0 };
+    const g = groups.get(key) || { key, title: pv.base, vols: new Set(), publishers: {}, authors: {}, artists: {}, lastYear: 0 };
+    const cr = parseCredits(get("title")[0], get("creator"), get("contributor"));
+    if (cr.author) g.authors[cr.author] = (g.authors[cr.author] || 0) + 1;
+    if (cr.artist) g.artists[cr.artist] = (g.artists[cr.artist] || 0) + 1;
     g.vols.add(pv.vol);
     const pub = cleanPublisher(get("publisher")[0]);
     if (pub) g.publishers[pub] = (g.publishers[pub] || 0) + 1;
@@ -200,7 +224,7 @@ async function bnfSearch(title) {
   }
   const wanted = norm(title);
   return [...groups.values()]
-    .map((g) => ({ ...g, count: Math.max(...g.vols), publisher: Object.entries(g.publishers).sort((a, b) => b[1] - a[1])[0]?.[0] || "" }))
+    .map((g) => ({ ...g, count: Math.max(...g.vols), publisher: topOf(g.publishers), author: topOf(g.authors), artist: topOf(g.artists) }))
     .sort((a, b) => (b.key === wanted) - (a.key === wanted) || b.count - a.count)
     .slice(0, 6);
 }
@@ -286,7 +310,7 @@ function seriesCard(v) {
     ${cvHtml(v)}
     <div class="s-body">
       <div class="s-t">${esc(s.title)}</div>
-      <div class="s-sub">${esc([s.publisher, statusLabel(s.status)].filter(Boolean).join(" · "))}${s.example ? " · exemple" : ""}</div>
+      <div class="s-sub">${esc([s.author, s.publisher, statusLabel(s.status)].filter(Boolean).join(" · "))}${s.example ? " · exemple" : ""}</div>
       <div class="progress" aria-hidden="true"><span style="width:${pct}%"></span></div>
       <div class="s-foot"><span class="num">${v.owned.size} / ${v.published}</span>${tag}${nextTag}</div>
     </div>
@@ -294,7 +318,7 @@ function seriesCard(v) {
   </div>`;
 }
 function matches(v) {
-  if (state.q && !(`${v.s.title} ${v.s.publisher || ""}`).toLowerCase().includes(state.q)) return false;
+  if (state.q && !(`${v.s.title} ${v.s.publisher || ""} ${v.s.author || ""} ${v.s.artist || ""}`).toLowerCase().includes(state.q)) return false;
   if (state.filter === "missing") return v.missing.length > 0;
   if (state.filter === "ongoing") return (v.s.status || "ongoing") === "ongoing";
   if (state.filter === "done") return v.s.status === "done";
@@ -350,6 +374,12 @@ function soonView(views) {
   if (waiting.length) html += `<div class="section-title">Pas encore annoncé <span>${waiting.length}</span></div><p class="summary">${waiting.map((v) => esc(v.s.title)).join(" · ")}</p>`;
   return html;
 }
+function creditsHtml(s) {
+  const a = (s.author || "").trim(), d = (s.artist || "").trim();
+  if (!a && !d) return "";
+  if (a && d && norm(a) !== norm(d)) return `<span class="credits"><span>Scénario <b>${esc(a)}</b></span><span>Dessin <b>${esc(d)}</b></span></span>`;
+  return `<span class="credits"><span>Auteur <b>${esc(a || d)}</b></span></span>`;
+}
 function detailView() {
   const s = find(state.detailId);
   if (!s) return `<div class="empty">${icon("search_off")}<span>Cette série n'existe plus.</span></div>`;
@@ -357,6 +387,7 @@ function detailView() {
   let html = `<div class="hero">${cvHtml(v, "hero-cv")}<div class="hero-txt">
     <span class="tag">${esc(statusLabel(s.status))}</span>
     <h2>${esc(s.title)}</h2>
+    ${creditsHtml(s)}
     <span class="s-sub">${esc(s.publisher || "Éditeur non renseigné")}${s.example ? " · exemple" : ""}</span></div></div>
     <div class="stats"><div><b class="num">${v.owned.size}</b><span>possédés</span></div><div><b class="num">${v.published}</b><span>parus</span></div><div><b class="num" style="${v.missing.length ? "color:var(--error)" : ""}">${v.missing.length}</b><span>manquants</span></div></div>`;
   if (v.upcoming) html += `<div class="next-card">${icon("event_upcoming")}<div class="grow"><div style="font-weight:500">Tome ${v.upcoming.vol}</div><div style="font-size:13px">${v.upcoming.date ? fmtDate(v.upcoming.date, { weekday: "long", day: "numeric", month: "long" }) : "Date non annoncée"}</div></div>
@@ -498,6 +529,8 @@ function openForm(s) {
   $("formTitle").textContent = s ? "Modifier la série" : "Nouvelle série";
   $("f-title").value = s ? s.title : "";
   $("f-publisher").value = s ? s.publisher || "" : "";
+  $("f-author").value = s ? s.author || "" : "";
+  $("f-artist").value = s ? s.artist || "" : "";
   $("f-status").value = s ? s.status || "ongoing" : "ongoing";
   $("f-published").value = s ? s.published || "" : "";
   $("f-owned").value = s ? formatOwned(s.owned || []) : "";
@@ -540,7 +573,7 @@ $("form").addEventListener("submit", async (e) => {
   const s = {
     ...(prev ? clone(prev) : {}),
     id: prev ? prev.id : (title.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "serie") + "-" + Math.random().toString(36).slice(2, 6),
-    title, publisher: $("f-publisher").value.trim(), status: $("f-status").value, published, owned,
+    title, publisher: $("f-publisher").value.trim(), author: $("f-author").value.trim(), artist: $("f-artist").value.trim(), status: $("f-status").value, published, owned,
     next: nextVol ? { vol: nextVol, date: nextDate || null, source: prev && prev.next && prev.next.vol === nextVol && prev.next.date === (nextDate || null) ? prev.next.source || null : "saisie" } : null,
     pinned: $("f-pinned").checked && !!nextVol,
   };
@@ -555,6 +588,7 @@ $("form").addEventListener("submit", async (e) => {
 // ---------- Sauvegarde ----------
 $("menuBtn").addEventListener("click", () => {
   const data = state.series.map((s) => { const c = clone(s); delete c.covers; return c; });
+  $("csvStatus").hidden = true;
   $("backupText").value = JSON.stringify({ app: "mangatheque", version: 1, series: data }, null, 1);
   $("backupDlg").showModal();
 });
@@ -602,7 +636,7 @@ $("bnfBtn").addEventListener("click", async () => {
     const res = await bnfSearch(title);
     state.bnfResults = res;
     if (!res.length) { note.textContent = "Aucune série trouvée. Vérifie l'orthographe ou saisis les infos à la main."; return; }
-    $("bnfResults").innerHTML = res.map((g, i) => `<button class="pick" type="button" data-i="${i}" role="listitem">${icon("menu_book")}<span><span class="li-t" style="display:block;white-space:normal">${esc(g.title)}</span><span class="li-s">${esc(g.publisher || "Éditeur inconnu")} · ${g.count} tome${g.count > 1 ? "s" : ""} · dernier en ${g.lastYear || "?"}</span></span></button>`).join("");
+    $("bnfResults").innerHTML = res.map((g, i) => `<button class="pick" type="button" data-i="${i}" role="listitem">${icon("menu_book")}<span><span class="li-t" style="display:block;white-space:normal">${esc(g.title)}</span><span class="li-s">${esc([g.author, g.publisher || "Éditeur inconnu"].filter(Boolean).join(" · "))} · ${g.count} tome${g.count > 1 ? "s" : ""} · dernier en ${g.lastYear || "?"}</span></span></button>`).join("");
     note.textContent = "Choisis la bonne série. Source : catalogue de la BnF (dépôt légal), qui peut avoir quelques semaines de retard sur les dernières sorties.";
   } catch { note.textContent = "Le catalogue de la BnF ne répond pas. Vérifie ta connexion."; }
   finally { $("bnfBtn").disabled = false; }
@@ -613,8 +647,93 @@ $("bnfResults").addEventListener("click", (e) => {
   state.bnfPick = g;
   $("f-title").value = g.title;
   if (g.publisher) $("f-publisher").value = g.publisher;
+  if (g.author) $("f-author").value = g.author;
+  if (g.artist) $("f-artist").value = g.artist;
   $("f-published").value = g.count;
   $("bnfResults").innerHTML = "";
   $("bnfNote").textContent = `${g.title} : ${g.count} tome${g.count > 1 ? "s" : ""} chez ${g.publisher || "un éditeur inconnu"}. Indique maintenant les tomes que tu possèdes.`;
   $("f-owned").focus();
+});
+
+// ---------- Import CSV : titre ; numéro du tome ; lien de couverture ; auteur ; dessinateur ----------
+function parseCsv(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/)[0] || "";
+  const delim = [";", ",", "\t"].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+  const rows = []; let row = [], field = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c; }
+    else if (c === '"') q = true;
+    else if (c === delim) { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(field); rows.push(row); row = []; field = ""; }
+    else field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows.map((r) => r.map((x) => x.trim())).filter((r) => r.some(Boolean));
+}
+function csvRecords(rows) {
+  const cols = { title: 0, vol: 1, cover: 2, author: 3, artist: 4 };
+  const head = rows[0] ? rows[0].map(norm) : [];
+  if (head.some((h) => /^(titre|title|serie|nom)/.test(h))) {
+    const find = (re) => head.findIndex((h) => re.test(h));
+    const idx = { title: find(/^(titre|title|serie|nom)/), vol: find(/(tome|numero|volume|vol)/), cover: find(/(image|couverture|cover|lien|url)/), author: find(/(auteur|scenar|author|writer)/), artist: find(/(dessin|illustr|artist)/) };
+    for (const k in idx) if (idx[k] >= 0) cols[k] = idx[k]; else cols[k] = -1;
+    rows = rows.slice(1);
+  }
+  const at = (r, k) => (cols[k] >= 0 ? (r[cols[k]] || "").trim() : "");
+  return rows.map((r, i) => ({ line: i + 1, title: at(r, "title"), vol: parseInt(at(r, "vol").replace(/\D+/g, ""), 10) || 0, cover: at(r, "cover"), author: at(r, "author"), artist: at(r, "artist") })).filter((r) => r.title);
+}
+async function importCsv(text) {
+  const status = (m) => { $("csvStatus").textContent = m; $("csvStatus").hidden = false; };
+  const recs = csvRecords(parseCsv(text));
+  if (!recs.length) { status("Aucune ligne exploitable : vérifie que la première colonne contient le titre."); return; }
+  let created = 0, updated = new Set(), tomes = 0, coversOk = 0, coversKo = 0;
+  const byKey = new Map(state.series.map((s) => [s.bnfKey || norm(s.title), s]));
+  for (const s of state.series) byKey.set(norm(s.title), s);
+  const work = new Map();
+  for (const r of recs) {
+    const key = norm(r.title);
+    let s = work.get(key);
+    if (!s) {
+      const existing = byKey.get(key);
+      s = existing ? clone(existing) : { id: (key.replace(/\s+/g, "-").slice(0, 60) || "serie") + "-" + Math.random().toString(36).slice(2, 6), title: r.title, publisher: "", status: "ongoing", published: 0, owned: [], next: null, pinned: false };
+      if (!existing) created++;
+      work.set(key, s);
+    }
+    if (r.author && !s.author) s.author = r.author;
+    if (r.artist && !s.artist) s.artist = r.artist;
+    if (r.vol) {
+      const owned = new Set(s.owned || []);
+      if (!owned.has(r.vol)) { owned.add(r.vol); tomes++; }
+      s.owned = [...owned].sort((a, b) => a - b);
+      s.published = Math.max(s.published || 0, r.vol);
+      if (s.next && s.next.vol <= r.vol) { s.next = null; s.pinned = false; }
+    }
+    if (byKey.has(key)) updated.add(key);
+  }
+  const withCover = recs.filter((r) => r.vol && /^https?:\/\//i.test(r.cover));
+  let n = 0;
+  for (const r of withCover) {
+    n++; status(`Couvertures : ${n} / ${withCover.length}…`);
+    const s = work.get(norm(r.title));
+    try { await storeCover(s, r.vol, await downloadImage(r.cover)); coversOk++; } catch { coversKo++; }
+  }
+  for (const s of work.values()) { s.updatedAt = new Date().toISOString(); const i = state.series.findIndex((x) => x.id === s.id); if (i >= 0) state.series[i] = s; else state.series.push(s); }
+  await persist(); render(); scheduleNotifications();
+  status(`Import terminé : ${recs.length} ligne(s), ${created} série(s) créée(s), ${updated.size} complétée(s), ${tomes} tome(s) ajouté(s)` + (withCover.length ? `, ${coversOk} couverture(s) récupérée(s)${coversKo ? `, ${coversKo} lien(s) en échec` : ""}` : "") + ".");
+
+}
+$("csvBtn").addEventListener("click", () => $("csvFile").click());
+$("csvFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  $("csvBtn").disabled = true;
+  try {
+    const buf = await f.arrayBuffer();
+    let text = new TextDecoder("utf-8").decode(buf);
+    if (text.includes("�")) text = new TextDecoder("windows-1252").decode(buf);
+    await importCsv(text);
+  } catch { $("csvStatus").textContent = "Impossible de lire ce fichier."; $("csvStatus").hidden = false; }
+  finally { $("csvBtn").disabled = false; }
 });
