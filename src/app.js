@@ -6,7 +6,6 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { App } from "@capacitor/app";
 
 const $ = (id) => document.getElementById(id);
-const MN = "https://www.manga-news.com";
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36";
 const state = { series: [], meta: {}, loaded: false, tab: "shelf", detailId: null, filter: "all", q: "", editing: null, sheetVol: null, busyVol: null, shelfScroll: 0, checking: false };
 
@@ -19,7 +18,6 @@ const icon = (n, fill) => `<span class="ms${fill ? " fill" : ""}" aria-hidden="t
 const statusLabel = (s) => ({ ongoing: "En cours", done: "Terminée", paused: "En pause" }[s || "ongoing"]);
 const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/\((les|le|la|l')\)\s*$/, "").replace(/^(les|le|la|l')\s*/, "").replace(/&/g, " et ").replace(/[^a-z0-9]+/g, " ").trim();
-const slugFromUrl = (u) => { const m = String(u || "").match(/manga-news\.com\/index\.php\/(?:serie|manga)\/([^/?#]+)/i); return m ? decodeURIComponent(m[1]) : null; };
 
 function parseOwned(text) {
   const out = new Set();
@@ -147,7 +145,7 @@ async function storeCover(s, vol, base64) {
 // Télécharge une image (pas de restriction de site dans l'appli native).
 async function downloadImage(url) {
   if (Capacitor.isNativePlatform()) {
-    const r = await CapacitorHttp.get({ url, responseType: "blob", headers: { "User-Agent": UA, Referer: MN + "/" } });
+    const r = await CapacitorHttp.get({ url, responseType: "blob", headers: { "User-Agent": UA } });
     if (r.status !== 200 || !r.data) throw new Error("http " + r.status);
     const ct = String((r.headers && (r.headers["Content-Type"] || r.headers["content-type"])) || "");
     if (ct && !/^image\//i.test(ct)) throw new Error("not image");
@@ -165,88 +163,72 @@ async function getText(url) {
   const r = await fetch(url); if (!r.ok) throw new Error("http " + r.status); return r.text();
 }
 
-// ---------- Sorties Manga-news ----------
-// Lit le planning mensuel : chaque tome est un lien /index.php/manga/<slug>/vol-<n> titré « manga <Titre> Vol.<n> », suivi de « Sortie le JJ/MM/AAAA ».
-function parsePlanning(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const byHref = new Map();
-  for (const a of doc.querySelectorAll('a[href*="/index.php/manga/"]')) {
-    const href = a.getAttribute("href") || "";
-    const hm = href.match(/\/index\.php\/manga\/([^/?#]+)\/vol-(\d+)/);
-    if (!hm) continue;
-    const e = byHref.get(hm[0]) || { slug: decodeURIComponent(hm[1]), vol: +hm[2], title: null, date: null, img: null };
-    const tm = (a.getAttribute("title") || "").match(/^manga\s+(.+?)\s+Vol\.\s*\d+\s*$/i);
-    if (tm) e.title = tm[1];
-    const img = a.querySelector("img");
-    if (img) {
-      const src = img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("src") || "";
-      if (/\/public\/images\/vols\//.test(src)) e.img = new URL(src, MN).href;
-    }
-    let el = a.parentElement;
-    for (let k = 0; k < 3 && el && !e.date; k++, el = el.parentElement) {
-      const dm = (el.textContent || "").match(/Sortie le (\d{2})\/(\d{2})\/(\d{4})/);
-      if (dm && el.querySelectorAll('a[href*="/vol-"]').length <= 4) e.date = `${dm[3]}-${dm[2]}-${dm[1]}`;
-    }
-    byHref.set(hm[0], e);
-  }
-  return [...byHref.values()].filter((e) => e.title || e.date);
+// ---------- Catalogue de la BnF (dépôt légal, API publique SRU) ----------
+// Manga-news et Nautiljon bloquent les applis (protection Cloudflare) : on s'appuie sur les données ouvertes de la BnF.
+const BNF = "https://catalogue.bnf.fr/api/SRU";
+const cleanPublisher = (p) => String(p || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+// « Frieren. Vol. 13 / scénario… », « Valkyrie apocalypse. 25 », « One Piece - Édition originale - Tome 112 »
+function parseVolumeTitle(raw) {
+  const main = String(raw || "").split(" / ")[0].replace(/\s+/g, " ").trim();
+  let m = main.match(/^(.+?)\s*[.,-]\s*(?:(?:vol(?:ume)?|tome|t)\.?\s*)?(\d{1,3})(?:\s*[:,.].*)?$/i)
+    || main.match(/^(.+?)\s*-\s*(?:.+?\s*-\s*)?(?:tome|vol\.?)\s*(\d{1,3})\b/i)
+    || main.match(/^(.+?)\s+(\d{1,3})(?:\s*:.*)?$/);
+  if (!m) return null;
+  const base = m[1].replace(/\s*[-.:]\s*$/, "").trim();
+  return base ? { base, vol: +m[2] } : null;
 }
+async function bnfSearch(title) {
+  const q = `bib.title all "${title.replace(/"/g, " ")}" and bib.doctype any "a"`;
+  const url = `${BNF}?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(q)}&recordSchema=dublincore&maximumRecords=200`;
+  const xml = await getText(url);
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  const groups = new Map();
+  for (const rec of doc.getElementsByTagNameNS("*", "dc")) {
+    const get = (tag) => [...rec.getElementsByTagNameNS("*", tag)].map((e) => e.textContent.trim());
+    const lang = get("language").join(" ");
+    if (lang && !/fre|fran/i.test(lang)) continue;
+    const pv = parseVolumeTitle(get("title")[0]);
+    if (!pv) continue;
+    const key = norm(pv.base);
+    const g = groups.get(key) || { key, title: pv.base, vols: new Set(), publishers: {}, lastYear: 0 };
+    g.vols.add(pv.vol);
+    const pub = cleanPublisher(get("publisher")[0]);
+    if (pub) g.publishers[pub] = (g.publishers[pub] || 0) + 1;
+    const y = parseInt(get("date")[0], 10); if (y > g.lastYear) g.lastYear = y;
+    if (/^[A-Z0-9]/.test(pv.base) && !/^[A-Z0-9]/.test(g.title)) g.title = pv.base;
+    groups.set(key, g);
+  }
+  const wanted = norm(title);
+  return [...groups.values()]
+    .map((g) => ({ ...g, count: Math.max(...g.vols), publisher: Object.entries(g.publishers).sort((a, b) => b[1] - a[1])[0]?.[0] || "" }))
+    .sort((a, b) => (b.key === wanted) - (a.key === wanted) || b.count - a.count)
+    .slice(0, 6);
+}
+// Vérifie dans le catalogue si de nouveaux tomes sont parus pour chaque série en cours.
 async function checkReleases({ silent } = {}) {
   if (state.checking) return;
   state.checking = true; render();
-  const now = new Date(), entries = [];
-  let failures = 0;
-  for (let k = 0; k < 3; k++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + k, 1);
-    try { entries.push(...parsePlanning(await getText(`${MN}/index.php/planning?p_year=${d.getFullYear()}&p_month=${d.getMonth() + 1}&p_editor=`))); }
-    catch { failures++; }
+  let changes = 0, errors = 0;
+  const found = [];
+  for (const orig of state.series.filter((s) => (s.status || "ongoing") === "ongoing")) {
+    try {
+      const key = orig.bnfKey || norm(orig.title);
+      const g = (await bnfSearch(orig.title)).find((x) => x.key === key);
+      if (!g || g.count <= (orig.published || 0)) continue;
+      const s = clone(orig);
+      s.published = g.count;
+      if (s.next && s.next.vol <= g.count) { s.next = null; s.pinned = false; }
+      s.updatedAt = new Date().toISOString();
+      state.series[state.series.findIndex((x) => x.id === s.id)] = s;
+      changes++; found.push(`${s.title} t.${g.count}`);
+    } catch { errors++; }
   }
-  if (failures === 3) { state.checking = false; render(); if (!silent) snack("Manga-news ne répond pas. Vérifie ta connexion et réessaie."); return; }
-  let changes = 0, covers = 0;
-  for (const orig of state.series) {
-    const s = clone(orig), key = norm(s.title);
-    const mine = entries.filter((e) => (s.mnSlug && e.slug === s.mnSlug) || (e.title && norm(e.title) === key));
-    if (!mine.length) continue;
-    let touched = false;
-    if (!s.mnSlug) { s.mnSlug = mine[0].slug; touched = true; }
-    const top = Math.max(s.published || 0, ...(s.owned || []), 0);
-    for (const e of mine) if (e.date && daysUntil(e.date) <= 0 && e.vol > (s.published || 0)) { s.published = e.vol; touched = true; }
-    const future = mine.filter((e) => e.date && daysUntil(e.date) > 0 && e.vol > top).sort((a, b) => a.vol - b.vol)[0];
-    if (future && (!s.next || s.next.vol !== future.vol || s.next.date !== future.date)) {
-      if (!s.next || s.next.vol !== future.vol) s.pinned = false;
-      s.next = { vol: future.vol, date: future.date, source: "Manga-news" }; touched = true; changes++;
-    }
-    for (const e of mine) {
-      if (e.img && !(s.covers || {})[e.vol] && covers < 30) {
-        try { await storeCover(s, e.vol, await downloadImage(e.img)); covers++; touched = true; } catch {}
-      }
-    }
-    if (touched) { s.updatedAt = new Date().toISOString(); state.series[state.series.findIndex((x) => x.id === s.id)] = s; }
-  }
-  state.meta = { ...state.meta, checkedAt: new Date().toISOString(), source: "Manga-news" };
+  if (errors && !changes && errors === state.series.length) { state.checking = false; render(); if (!silent) snack("Le catalogue de la BnF ne répond pas. Vérifie ta connexion."); return; }
+  state.meta = { ...state.meta, checkedAt: new Date().toISOString(), source: "BnF" };
   await persist();
   state.checking = false; render(); scheduleNotifications();
-  if (!silent || changes) snack(changes ? `${changes} sortie${changes > 1 ? "s" : ""} mise${changes > 1 ? "s" : ""} à jour${covers ? `, ${covers} couverture(s)` : ""}` : `Aucune nouvelle sortie${covers ? `, ${covers} couverture(s) ajoutée(s)` : ""}`);
-}
-// Couvertures des tomes possédés depuis les fiches Manga-news (meilleur effort).
-async function fetchSeriesCovers(s0) {
-  const s = clone(s0);
-  if (!s.mnSlug) { snack("Ajoute le lien Manga-news de la série (Modifier) ou lance une vérification des sorties."); return; }
-  const v = view(s), todo = [];
-  for (let i = 1; i <= v.total; i++) if (!(s.covers || {})[i]) todo.push(i);
-  if (!todo.length) { snack("Toutes les couvertures sont déjà là."); return; }
-  snack(`Recherche de ${Math.min(todo.length, 20)} couverture(s)…`);
-  let n = 0;
-  for (const vol of todo.slice(0, 20)) {
-    try {
-      const html = await getText(`${MN}/index.php/manga/${encodeURIComponent(s.mnSlug)}/vol-${vol}`);
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const srcs = [...doc.querySelectorAll("img")].map((i) => i.getAttribute("data-src") || i.getAttribute("src") || "").filter((x) => /\/public\/images\/vols\//.test(x));
-      const best = srcs.find((x) => !/_(small|medium)\./.test(x)) || srcs[0];
-      if (best) { await storeCover(s, vol, await downloadImage(new URL(best, MN).href)); n++; }
-    } catch {}
-  }
-  await upsert(s, n ? `${n} couverture(s) ajoutée(s)` : "Aucune couverture trouvée sur Manga-news.");
+  if (changes) snack(`Nouveau${changes > 1 ? "x" : ""} tome${changes > 1 ? "s" : ""} paru${changes > 1 ? "s" : ""} : ${found.join(", ")}`);
+  else if (!silent) snack("Aucun nouveau tome paru depuis la dernière vérification.");
 }
 
 // ---------- Notifications le jour de la sortie ----------
@@ -354,7 +336,7 @@ function buyView(views) {
 }
 function soonView(views) {
   const m = state.meta;
-  let html = `<div class="info">${icon(state.checking ? "hourglass_top" : "sync")}<span>${state.checking ? "Vérification sur Manga-news…" : m && m.checkedAt ? `Sorties vérifiées le ${new Date(m.checkedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} sur Manga-news. Touche ⟳ en haut pour revérifier.` : "Touche ⟳ en haut pour récupérer les dates sur Manga-news."}</span></div>`;
+  let html = `<div class="info">${icon(state.checking ? "hourglass_top" : "sync")}<span>${state.checking ? "Recherche de nouveaux tomes dans le catalogue de la BnF…" : `${m && m.checkedAt ? `Nouveaux tomes vérifiés le ${new Date(m.checkedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}. ` : ""}Touche ⟳ pour chercher les tomes parus. Les dates à venir se saisissent dans la fiche de la série.`}</span></div>`;
   const up = views.filter((v) => v.upcoming).sort((a, b) => (a.upcoming.date || "9999").localeCompare(b.upcoming.date || "9999"));
   if (!up.length) html += `<div class="empty">${icon("event_busy")}<strong>Aucune sortie annoncée</strong><span>Les prochains tomes de tes séries en cours apparaîtront ici.</span></div>`;
   let month = null;
@@ -379,7 +361,7 @@ function detailView() {
     <div class="stats"><div><b class="num">${v.owned.size}</b><span>possédés</span></div><div><b class="num">${v.published}</b><span>parus</span></div><div><b class="num" style="${v.missing.length ? "color:var(--error)" : ""}">${v.missing.length}</b><span>manquants</span></div></div>`;
   if (v.upcoming) html += `<div class="next-card">${icon("event_upcoming")}<div class="grow"><div style="font-weight:500">Tome ${v.upcoming.vol}</div><div style="font-size:13px">${v.upcoming.date ? fmtDate(v.upcoming.date, { weekday: "long", day: "numeric", month: "long" }) : "Date non annoncée"}</div></div>
     <button class="icon-btn" type="button" data-act="pin" data-id="${esc(s.id)}" aria-pressed="${!!s.pinned}" aria-label="${s.pinned ? "Désépingler" : "Épingler et me prévenir"}">${icon("push_pin", s.pinned)}</button></div>`;
-  html += `<div class="actions"><button class="btn filled" type="button" data-act="plus" data-id="${esc(s.id)}">${icon("add")}J'ai le tome ${nextToBuy(s)}</button><button class="btn outlined" type="button" data-act="covers" data-id="${esc(s.id)}">${icon("photo_library")}Couvertures</button></div>`;
+  html += `<div class="actions"><button class="btn filled" type="button" data-act="plus" data-id="${esc(s.id)}">${icon("add")}J'ai le tome ${nextToBuy(s)}</button><button class="btn outlined" type="button" data-act="edit" data-id="${esc(s.id)}">${icon("edit")}Modifier</button></div>`;
   html += `<div class="section-title">Tomes</div><p class="summary">Touche un tome pour le cocher ou changer sa couverture.</p><div class="tiles">`;
   for (let i = 1; i <= Math.max(v.total, 1); i++) {
     const own = v.owned.has(i), isNext = v.upcoming && v.upcoming.vol === i, miss = !own && !isNext && i <= v.published;
@@ -460,7 +442,7 @@ $("main").addEventListener("click", async (ev) => {
     if (c.pinned) await askNotifications();
     await upsert(c, c.pinned ? "Épinglé : notification le jour de la sortie" : "Désépinglé");
   }
-  if (act === "covers") fetchSeriesCovers(s);
+  if (act === "edit") openForm(s);
   if (act === "tome") openSheet(vol);
 });
 $("main").addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button][data-act]")) { e.preventDefault(); e.target.click(); } });
@@ -521,7 +503,7 @@ function openForm(s) {
   $("f-owned").value = s ? formatOwned(s.owned || []) : "";
   $("f-nextvol").value = s && s.next ? s.next.vol || "" : "";
   $("f-nextdate").value = s && s.next ? s.next.date || "" : "";
-  $("f-mn").value = s && s.mnSlug ? `${MN}/index.php/serie/${s.mnSlug}` : "";
+  $("bnfResults").innerHTML = ""; $("bnfNote").hidden = true; state.bnfPick = null;
   $("f-pinned").checked = !!(s && s.pinned);
   $("formErr").hidden = true;
   $("delBtn").hidden = !s;
@@ -554,8 +536,6 @@ $("form").addEventListener("submit", async (e) => {
   const published = Math.max(+$("f-published").value || 0, owned.length ? owned[owned.length - 1] : 0);
   const nextVol = +$("f-nextvol").value || 0, nextDate = $("f-nextdate").value;
   if (nextDate && !nextVol) return err("Indique le numéro du prochain tome pour cette date.");
-  const mnRaw = $("f-mn").value.trim(), mnSlug = mnRaw ? slugFromUrl(mnRaw) : null;
-  if (mnRaw && !mnSlug) return err("Le lien Manga-news doit ressembler à https://www.manga-news.com/index.php/serie/…");
   const prev = state.editing ? find(state.editing) : null;
   const s = {
     ...(prev ? clone(prev) : {}),
@@ -564,7 +544,9 @@ $("form").addEventListener("submit", async (e) => {
     next: nextVol ? { vol: nextVol, date: nextDate || null, source: prev && prev.next && prev.next.vol === nextVol && prev.next.date === (nextDate || null) ? prev.next.source || null : "saisie" } : null,
     pinned: $("f-pinned").checked && !!nextVol,
   };
-  if (mnSlug) s.mnSlug = mnSlug; else delete s.mnSlug;
+  delete s.mnSlug;
+  if (state.bnfPick && norm(title) === norm(state.bnfPick.title)) s.bnfKey = state.bnfPick.key;
+  else if (prev && prev.title !== title) delete s.bnfKey;
   if (prev) delete s.example;
   if (s.pinned) await askNotifications();
   if (await upsert(s, prev ? "Série mise à jour" : `${title} ajoutée`)) { $("formDlg").close(); if (!prev) openDetail(s.id); }
@@ -609,4 +591,30 @@ load().then(() => {
   render(); scheduleNotifications();
   const last = state.meta && state.meta.checkedAt ? new Date(state.meta.checkedAt) : null;
   if (Capacitor.isNativePlatform() && (!last || Date.now() - last > 3 * 86400000)) checkReleases({ silent: true });
+});
+
+// ---------- Remplissage automatique (catalogue BnF) ----------
+$("bnfBtn").addEventListener("click", async () => {
+  const title = $("f-title").value.trim(), note = $("bnfNote");
+  if (title.length < 2) { note.textContent = "Tape d'abord le titre de la série."; note.hidden = false; return; }
+  $("bnfBtn").disabled = true; note.hidden = false; note.textContent = "Recherche dans le catalogue de la BnF…"; $("bnfResults").innerHTML = "";
+  try {
+    const res = await bnfSearch(title);
+    state.bnfResults = res;
+    if (!res.length) { note.textContent = "Aucune série trouvée. Vérifie l'orthographe ou saisis les infos à la main."; return; }
+    $("bnfResults").innerHTML = res.map((g, i) => `<button class="pick" type="button" data-i="${i}" role="listitem">${icon("menu_book")}<span><span class="li-t" style="display:block;white-space:normal">${esc(g.title)}</span><span class="li-s">${esc(g.publisher || "Éditeur inconnu")} · ${g.count} tome${g.count > 1 ? "s" : ""} · dernier en ${g.lastYear || "?"}</span></span></button>`).join("");
+    note.textContent = "Choisis la bonne série. Source : catalogue de la BnF (dépôt légal), qui peut avoir quelques semaines de retard sur les dernières sorties.";
+  } catch { note.textContent = "Le catalogue de la BnF ne répond pas. Vérifie ta connexion."; }
+  finally { $("bnfBtn").disabled = false; }
+});
+$("bnfResults").addEventListener("click", (e) => {
+  const b = e.target.closest(".pick"); if (!b) return;
+  const g = state.bnfResults[+b.dataset.i];
+  state.bnfPick = g;
+  $("f-title").value = g.title;
+  if (g.publisher) $("f-publisher").value = g.publisher;
+  $("f-published").value = g.count;
+  $("bnfResults").innerHTML = "";
+  $("bnfNote").textContent = `${g.title} : ${g.count} tome${g.count > 1 ? "s" : ""} chez ${g.publisher || "un éditeur inconnu"}. Indique maintenant les tomes que tu possèdes.`;
+  $("f-owned").focus();
 });

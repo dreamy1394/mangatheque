@@ -201,6 +201,10 @@ form.fields { padding: 8px 24px 32px; display: grid; gap: 20px; }
 .switch:checked { background: var(--primary); border-color: var(--primary); }
 .switch:checked::after { left: 22px; top: 2px; width: 24px; height: 24px; background: var(--on-primary); }
 .fill-note { font-size: 12px; color: var(--on-surface-variant); margin: -12px 16px 0; }
+#bnfResults:empty { display: none; }
+.pick { width: 100%; border: 0; background: none; text-align: left; display: flex; gap: 12px; align-items: center; padding: 10px 8px; color: var(--on-surface); }
+.pick + .pick { border-top: 1px solid var(--outline-variant); }
+.pick .ms { color: var(--primary); }
 dialog.alert { width: min(312px, calc(100vw - 48px)); border-radius: 28px; padding: 24px; background: var(--surface-high); }
 dialog.alert h3 { margin: 0 0 16px; font-size: 24px; font-weight: 400; line-height: 32px; }
 dialog.alert p { margin: 0 0 24px; color: var(--on-surface-variant); }
@@ -265,6 +269,9 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
       <label for="f-title">Titre</label>
       <input id="f-title" maxlength="120" placeholder="One Piece" autocomplete="off">
     </div>
+    <button class="btn tonal" type="button" id="bnfBtn"><span class="ms">auto_awesome</span>Compléter automatiquement</button>
+    <div id="bnfResults" class="card" style="padding:0 8px" role="list"></div>
+    <p class="fill-note" id="bnfNote" hidden></p>
     <div class="row2">
       <div class="field"><label for="f-publisher">Éditeur</label><input id="f-publisher" maxlength="60" placeholder="Glénat"></div>
       <div class="field"><label for="f-status">Statut</label>
@@ -279,7 +286,6 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
       <div class="field"><label for="f-nextvol">Prochain tome</label><input id="f-nextvol" type="number" min="1" max="400" inputmode="numeric" placeholder="109"></div>
       <div class="field"><label for="f-nextdate">Date de sortie</label><input id="f-nextdate" type="date"></div>
     </div>
-    <div class="field"><label for="f-mn">Fiche Manga-news (facultatif)</label><input id="f-mn" type="url" inputmode="url" placeholder="https://www.manga-news.com/index.php/serie/..." autocomplete="off"><span class="support">Sert à retrouver les couvertures et les sorties si le titre diffère</span></div>
     <div class="switch-row"><label for="f-pinned">Épingler le prochain tome</label><input class="switch" id="f-pinned" type="checkbox"></div>
     <p class="support err" id="formErr" hidden></p>
     <button class="btn text danger" type="button" id="delBtn" hidden><span class="ms">delete</span>Supprimer la série</button>
