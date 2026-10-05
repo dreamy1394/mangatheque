@@ -35,6 +35,7 @@ jobs:
       - name: Générer le projet Android
         run: |
           npx cap add android
+          node scripts/patch-android.mjs
           npx cap sync android
 
       - name: Compiler et signer l'APK

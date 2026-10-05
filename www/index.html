@@ -145,7 +145,7 @@ button { cursor: pointer; }
 .hero-cv { width: 112px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-highest); display: grid; place-items: center; font-size: 34px; color: var(--on-surface-variant); flex: none; box-shadow: 0 2px 6px rgb(0 0 0 / .15); }
 .hero-txt { min-width: 0; display: grid; gap: 6px; justify-items: start; }
 .hero-txt h2 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 400; text-wrap: balance; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-low); border-radius: 16px; padding: 12px 0; text-align: center; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface-low); border-radius: 16px; padding: 12px 0; text-align: center; }
 .stats div + div { border-left: 1px solid var(--outline-variant); }
 .stats b { display: block; font-size: 22px; line-height: 28px; font-weight: 500; }
 .stats span { font-size: 12px; color: var(--on-surface-variant); }
@@ -161,6 +161,17 @@ button { cursor: pointer; }
 .tile.notown .art img { opacity: .55; filter: grayscale(.6); }
 .tile .st { position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); }
 .tile .st .ms { font-size: 16px; }
+.tile .st.read { background: var(--tertiary, #7d5260); color: var(--on-tertiary, #fff); }
+.budget { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.budget div { background: var(--primary-container, var(--surface-high)); color: var(--on-primary-container, var(--on-surface)); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; }
+.budget b { font-size: 24px; line-height: 30px; font-weight: 500; }
+.budget span { font-size: 12px; }
+.paste.price-row { margin: 12px 0 0; }
+.price-row label { flex: 1; font-size: 14px; }
+.price-row input { width: 80px; flex: none; text-align: right; }
+#scanDlg .paste.paste { margin: 12px 0 0; }
+#scanBody .found { display: grid; gap: 4px; margin-top: 8px; }
+#scanBody .found b { font-size: 18px; font-weight: 500; }
 .tile .lbl { font-size: 12px; color: var(--on-surface-variant); display: flex; justify-content: space-between; gap: 4px; }
 .tile.miss .lbl { color: var(--error); }
 
@@ -230,6 +241,7 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
   <header class="appbar" id="appbar">
     <button class="icon-btn" type="button" id="backBtn" aria-label="Retour" hidden><span class="ms">arrow_back</span></button>
     <h1 id="barTitle">Ma mangathèque</h1>
+    <button class="icon-btn" type="button" id="scanBtn" aria-label="Scanner un code-barres"><span class="ms">barcode_scanner</span></button>
     <button class="icon-btn" type="button" id="searchBtn" aria-label="Rechercher"><span class="ms">search</span></button>
     <button class="icon-btn" type="button" id="checkBtn" aria-label="Vérifier les sorties" hidden><span class="ms">sync</span></button>
     <button class="icon-btn" type="button" id="menuBtn" aria-label="Import et sauvegarde" hidden><span class="ms">more_vert</span></button>
@@ -292,6 +304,7 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
       <div class="field"><label for="f-nextvol">Prochain tome</label><input id="f-nextvol" type="number" min="1" max="400" inputmode="numeric" placeholder="109"></div>
       <div class="field"><label for="f-nextdate">Date de sortie</label><input id="f-nextdate" type="date"></div>
     </div>
+    <div class="field"><label for="f-price">Prix d'un tome (€)</label><input id="f-price" type="number" min="0" max="999" step="0.01" inputmode="decimal" placeholder="7,50"><span class="support">Vide = prix par défaut, réglable dans l'onglet À acheter</span></div>
     <div class="switch-row"><label for="f-pinned">Épingler le prochain tome</label><input class="switch" id="f-pinned" type="checkbox"></div>
     <p class="support err" id="formErr" hidden></p>
     <button class="btn text danger" type="button" id="delBtn" hidden><span class="ms">delete</span>Supprimer la série</button>
@@ -315,11 +328,21 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
     <div class="actions" style="margin:0"><button class="btn filled" type="button" id="csvBtn"><span class="ms">upload_file</span>Choisir un fichier CSV</button></div>
     <p class="summary" id="csvStatus" hidden style="margin:0;color:var(--on-surface)"></p>
     <input type="file" id="csvFile" accept=".csv,text/csv,text/plain,text/comma-separated-values,application/vnd.ms-excel" hidden>
-    <div class="section-title" style="margin:8px 0 0">Sauvegarde complète</div>
-    <p class="summary" style="margin:0">Ta collection est enregistrée sur ce téléphone. Copie ce texte pour la sauvegarder ou la transférer, ou colle une sauvegarde pour la restaurer (les couvertures ne sont pas incluses).</p>
-    <textarea id="backupText" rows="10" style="width:100%;border:1px solid var(--outline);border-radius:4px;padding:12px;background:var(--surface);color:var(--on-surface);font:12px/1.4 var(--mono)"></textarea>
-    <div class="actions"><button class="btn tonal" type="button" id="backupCopy"><span class="ms">content_copy</span>Copier</button><button class="btn outlined" type="button" id="backupRestore"><span class="ms">restore</span>Restaurer ce texte</button></div>
+    <div class="section-title" style="margin:8px 0 0">Sauvegarde</div>
+    <p class="summary" style="margin:0"><b>Automatique :</b> Android sauvegarde les données de l'appli (collection et couvertures) sur ton compte Google, en général une fois par jour quand le téléphone charge en Wi-Fi. Elles reviennent toutes seules si tu réinstalles l'appli ou changes de téléphone. Vérifie que c'est activé dans Paramètres › Google › Sauvegarde.</p>
+    <p class="summary" style="margin:0"><b>Manuelle :</b> envoie un fichier de sauvegarde complet, couvertures comprises, vers Google Drive ou par mail. <span id="lastExport"></span></p>
+    <div class="actions" style="margin:0"><button class="btn filled" type="button" id="exportBtn"><span class="ms">cloud_upload</span>Envoyer une sauvegarde</button><button class="btn outlined" type="button" id="restoreBtn"><span class="ms">restore</span>Restaurer un fichier</button></div>
+    <input type="file" id="restoreFile" accept=".json,application/json,text/plain" hidden>
   </div>
+</dialog>
+
+<dialog class="alert" id="scanDlg" aria-labelledby="scanTitle">
+  <h3 id="scanTitle">Ajouter un tome par son code-barres</h3>
+  <div id="scanBody"></div>
+  <div class="paste">
+    <span class="ms">pin</span><input id="isbnInput" inputmode="numeric" maxlength="17" placeholder="ISBN à 13 chiffres" aria-label="ISBN à 13 chiffres" autocomplete="off"><button class="btn text small" type="button" id="isbnGo">OK</button>
+  </div>
+  <div class="end" id="scanActions"></div>
 </dialog>
 
 <input type="file" id="coverFile" accept="image/*" hidden>

@@ -4,6 +4,8 @@ import { Preferences } from "@capacitor/preferences";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { App } from "@capacitor/app";
+import { Share } from "@capacitor/share";
+import { BarcodeScanner, BarcodeFormat } from "@capacitor-mlkit/barcode-scanning";
 
 const $ = (id) => document.getElementById(id);
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36";
@@ -48,10 +50,14 @@ function view(s) {
   const missing = [];
   for (let i = 1; i <= published; i++) if (!owned.has(i)) missing.push(i);
   const upcoming = next && !nextOut && !owned.has(next.vol) ? next : null;
-  return { s, owned, published, missing, upcoming, total: Math.max(published, upcoming ? upcoming.vol : 0, ...owned) };
+  const read = new Set(s.read || []), toRead = [...owned].filter((i) => !read.has(i)).sort((a, b) => a - b);
+  return { s, owned, read, toRead, published, missing, upcoming, total: Math.max(published, upcoming ? upcoming.vol : 0, ...owned) };
 }
 const find = (id) => state.series.find((s) => s.id === id);
 const clone = (s) => JSON.parse(JSON.stringify(s));
+const DEFAULT_PRICE = 7.5;
+const priceOf = (s) => (s.price > 0 ? s.price : state.meta.defaultPrice > 0 ? state.meta.defaultPrice : DEFAULT_PRICE);
+const euros = (n) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 function nextToBuy(s) {
   const v = view(s);
   return v.missing[0] || (v.upcoming ? v.upcoming.vol : Math.max(v.published, ...v.owned, 0) + 1);
@@ -123,6 +129,7 @@ function coverFor(v) {
 const cvHtml = (v, cls = "cv") => { const c = coverFor(v); const img = c && imgTag(c.file); return `<div class="${cls}">${img || (Math.max(...v.owned, 0) || icon("menu_book"))}</div>`; };
 
 const blobToBase64 = (blob) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = ko; r.readAsDataURL(blob); });
+const b64ToBlob = (b64, type) => { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type }); };
 async function shrinkToBase64(blob) {
   try {
     const url = URL.createObjectURL(blob);
@@ -149,10 +156,10 @@ async function downloadImage(url) {
     if (r.status !== 200 || !r.data) throw new Error("http " + r.status);
     const ct = String((r.headers && (r.headers["Content-Type"] || r.headers["content-type"])) || "");
     if (ct && !/^image\//i.test(ct)) throw new Error("not image");
-    return r.data;
+    return shrinkToBase64(b64ToBlob(r.data, ct || "image/jpeg"));
   }
   const r = await fetch(url); if (!r.ok) throw new Error("http " + r.status);
-  return blobToBase64(await r.blob());
+  return shrinkToBase64(await r.blob());
 }
 async function getText(url) {
   if (Capacitor.isNativePlatform()) {
@@ -299,12 +306,20 @@ async function setOwned(s0, vol, own) {
   await upsert(s, own ? `${s.title} t.${vol} ajouté à l'étagère` : `${s.title} t.${vol} retiré`);
 }
 
+async function setRead(s0, vols, read) {
+  const s = clone(s0), set = new Set(s.read || []);
+  for (const v of vols) read ? set.add(v) : set.delete(v);
+  s.read = [...set].sort((x, y) => x - y);
+  await upsert(s, vols.length > 1 ? `${vols.length} tomes marqués comme lus` : `${s.title} t.${vols[0]} ${read ? "marqué comme lu" : "marqué à lire"}`);
+}
+
 // ---------- Vues ----------
 function seriesCard(v) {
   const s = v.s, pct = v.published ? Math.round((v.owned.size / Math.max(v.published, v.owned.size)) * 100) : 0;
   let tag = "";
   if (v.missing.length) tag = `<span class="tag err">${v.missing.length} manquant${v.missing.length > 1 ? "s" : ""}</span>`;
   else if (v.owned.size) tag = `<span class="tag ok">${icon("check")}À jour</span>`;
+  if (v.toRead.length && !v.missing.length) tag = `<span class="tag">${icon("auto_stories")}${v.toRead.length} à lire</span>`;
   const nextTag = v.upcoming && v.upcoming.date ? `<span class="tag next">${icon("event")}t.${v.upcoming.vol} · ${fmtDate(v.upcoming.date)}</span>` : "";
   return `<div class="s-card" role="button" tabindex="0" data-act="open" data-id="${esc(s.id)}">
     ${cvHtml(v)}
@@ -320,16 +335,17 @@ function seriesCard(v) {
 function matches(v) {
   if (state.q && !(`${v.s.title} ${v.s.publisher || ""} ${v.s.author || ""} ${v.s.artist || ""}`).toLowerCase().includes(state.q)) return false;
   if (state.filter === "missing") return v.missing.length > 0;
+  if (state.filter === "toread") return v.toRead.length > 0;
   if (state.filter === "ongoing") return (v.s.status || "ongoing") === "ongoing";
   if (state.filter === "done") return v.s.status === "done";
   return true;
 }
 function shelfView(views) {
   if (!state.loaded) return `<div class="empty">${icon("hourglass_empty")}<span>Chargement…</span></div>`;
-  const tomes = views.reduce((n, v) => n + v.owned.size, 0);
-  const chips = [["all", "Toutes"], ["missing", "À compléter"], ["ongoing", "En cours"], ["done", "Terminées"]]
+  const tomes = views.reduce((n, v) => n + v.owned.size, 0), toRead = views.reduce((n, v) => n + v.toRead.length, 0);
+  const chips = [["all", "Toutes"], ["missing", "À compléter"], ["toread", "À lire"], ["ongoing", "En cours"], ["done", "Terminées"]]
     .map(([k, l]) => `<button class="chip" type="button" data-act="filter" data-f="${k}" aria-pressed="${state.filter === k}">${state.filter === k ? icon("check") : ""}${l}</button>`).join("");
-  let html = `<p class="summary"><span><b class="num">${views.length}</b> série${views.length > 1 ? "s" : ""}</span><span><b class="num">${tomes}</b> tome${tomes > 1 ? "s" : ""}</span></p><div class="chips" role="group" aria-label="Filtrer">${chips}</div>`;
+  let html = `<p class="summary"><span><b class="num">${views.length}</b> série${views.length > 1 ? "s" : ""}</span><span><b class="num">${tomes}</b> tome${tomes > 1 ? "s" : ""}</span>${toRead ? `<span><b class="num">${toRead}</b> à lire</span>` : ""}</p><div class="chips" role="group" aria-label="Filtrer">${chips}</div>`;
   if (!views.length) return html + `<div class="empty">${icon("auto_stories")}<strong>Ton étagère est vide</strong><span>Ajoute ta première série avec le bouton « Série ».</span></div>`;
   const shown = views.filter(matches).sort((a, b) =>
     (b.missing.length > 0) - (a.missing.length > 0) ||
@@ -348,13 +364,21 @@ function releaseItem(v) {
 function buyView(views) {
   const now = views.filter((v) => v.missing.length).sort((a, b) => a.s.title.localeCompare(b.s.title, "fr"));
   const pinned = views.filter((v) => v.upcoming && v.s.pinned).sort((a, b) => (a.upcoming.date || "9999").localeCompare(b.upcoming.date || "9999"));
-  let html = `<div class="section-title">En librairie <span>${now.reduce((n, v) => n + v.missing.length, 0)} tome(s)</span></div>`;
+  const nMiss = now.reduce((n, v) => n + v.missing.length, 0), costMiss = now.reduce((n, v) => n + v.missing.length * priceOf(v.s), 0);
+  const costPinned = pinned.reduce((n, v) => n + priceOf(v.s), 0);
+  const soon30 = views.filter((v) => v.upcoming && v.upcoming.date && daysUntil(v.upcoming.date) <= 30);
+  const cost30 = soon30.reduce((n, v) => n + priceOf(v.s), 0);
+  let html = `<div class="budget"><div><b class="num">${euros(costMiss)}</b><span>pour rattraper ${nMiss} tome${nMiss > 1 ? "s" : ""} manquant${nMiss > 1 ? "s" : ""}</span></div>
+    <div><b class="num">${euros(cost30)}</b><span>${soon30.length} sortie${soon30.length > 1 ? "s" : ""} dans les 30 jours</span></div></div>
+    <div class="paste price-row">${icon("sell")}<label for="defPrice">Prix d'un tome par défaut</label><input id="defPrice" type="number" inputmode="decimal" step="0.01" min="0" value="${priceOf({})}"><span>€</span></div>
+    <p class="summary">Le prix d'une série précise se règle dans sa fiche (Modifier).</p>
+    <div class="section-title">En librairie <span>${nMiss} tome(s) · ${euros(costMiss)}</span></div>`;
   html += now.length ? `<div class="card">${now.map((v) => {
     const first = v.missing[0];
-    return `<div class="li">${cvHtml(v)}<div class="li-body" data-act="open" data-id="${esc(v.s.id)}" role="button" tabindex="0"><div class="li-t">${esc(v.s.title)}</div><div class="li-s num">Tome${v.missing.length > 1 ? "s" : ""} ${esc(formatOwned(v.missing))}</div></div>
+    return `<div class="li">${cvHtml(v)}<div class="li-body" data-act="open" data-id="${esc(v.s.id)}" role="button" tabindex="0"><div class="li-t">${esc(v.s.title)}</div><div class="li-s num">Tome${v.missing.length > 1 ? "s" : ""} ${esc(formatOwned(v.missing))} · ${euros(v.missing.length * priceOf(v.s))}</div></div>
       <button class="btn tonal small" type="button" data-act="buy" data-id="${esc(v.s.id)}" data-vol="${first}">${icon("check")}t.${first}</button></div>`;
   }).join("")}</div>` : `<div class="info">${icon("task_alt")}<span>Rien en retard : toutes tes séries sont à jour.</span></div>`;
-  html += `<div class="section-title">Épinglés <span>notification le jour de la sortie</span></div>`;
+  html += `<div class="section-title">Épinglés <span>${pinned.length ? euros(costPinned) + " · " : ""}notification le jour J</span></div>`;
   html += pinned.length ? `<div class="card">${pinned.map(releaseItem).join("")}</div>` : `<div class="info">${icon("push_pin")}<span>Épingle une sortie depuis l'onglet Sorties : tu recevras une notification le jour J.</span></div>`;
   return html;
 }
@@ -389,17 +413,18 @@ function detailView() {
     <h2>${esc(s.title)}</h2>
     ${creditsHtml(s)}
     <span class="s-sub">${esc(s.publisher || "Éditeur non renseigné")}${s.example ? " · exemple" : ""}</span></div></div>
-    <div class="stats"><div><b class="num">${v.owned.size}</b><span>possédés</span></div><div><b class="num">${v.published}</b><span>parus</span></div><div><b class="num" style="${v.missing.length ? "color:var(--error)" : ""}">${v.missing.length}</b><span>manquants</span></div></div>`;
+    <div class="stats"><div><b class="num">${v.owned.size}</b><span>possédés</span></div><div><b class="num">${v.published}</b><span>parus</span></div><div><b class="num" style="${v.missing.length ? "color:var(--error)" : ""}">${v.missing.length}</b><span>manquants</span></div><div><b class="num">${v.toRead.length}</b><span>à lire</span></div></div>`;
   if (v.upcoming) html += `<div class="next-card">${icon("event_upcoming")}<div class="grow"><div style="font-weight:500">Tome ${v.upcoming.vol}</div><div style="font-size:13px">${v.upcoming.date ? fmtDate(v.upcoming.date, { weekday: "long", day: "numeric", month: "long" }) : "Date non annoncée"}</div></div>
     <button class="icon-btn" type="button" data-act="pin" data-id="${esc(s.id)}" aria-pressed="${!!s.pinned}" aria-label="${s.pinned ? "Désépingler" : "Épingler et me prévenir"}">${icon("push_pin", s.pinned)}</button></div>`;
   html += `<div class="actions"><button class="btn filled" type="button" data-act="plus" data-id="${esc(s.id)}">${icon("add")}J'ai le tome ${nextToBuy(s)}</button><button class="btn outlined" type="button" data-act="edit" data-id="${esc(s.id)}">${icon("edit")}Modifier</button></div>`;
-  html += `<div class="section-title">Tomes</div><p class="summary">Touche un tome pour le cocher ou changer sa couverture.</p><div class="tiles">`;
+  html += `<div class="section-title">Tomes${v.toRead.length > 1 ? `<button class="btn text small" type="button" data-act="readall" data-id="${esc(s.id)}">${icon("done_all")}Tout marquer comme lu</button>` : ""}</div><p class="summary">Touche un tome pour le cocher, le marquer comme lu ou changer sa couverture.</p><div class="tiles">`;
   for (let i = 1; i <= Math.max(v.total, 1); i++) {
     const own = v.owned.has(i), isNext = v.upcoming && v.upcoming.vol === i, miss = !own && !isNext && i <= v.published;
     const img = covers[i] && imgTag(covers[i]);
-    const lbl = own ? "Possédé" : isNext ? (v.upcoming.date ? fmtDate(v.upcoming.date) : "Annoncé") : miss ? "Manquant" : "";
-    html += `<button class="tile ${miss ? "miss" : ""} ${isNext ? "next" : ""} ${!own ? "notown" : ""}" type="button" data-act="tome" data-vol="${i}" aria-label="Tome ${i}, ${lbl || "non paru"}">
-      <div class="art">${img || `<span class="num">${i}</span>`}${own ? `<span class="st">${icon("check")}</span>` : ""}</div>
+    const isRead = own && v.read.has(i);
+    const lbl = own ? (isRead ? "Lu" : "À lire") : isNext ? (v.upcoming.date ? fmtDate(v.upcoming.date) : "Annoncé") : miss ? "Manquant" : "";
+    html += `<button class="tile ${miss ? "miss" : ""} ${isNext ? "next" : ""} ${!own ? "notown" : ""}" type="button" data-act="tome" data-vol="${i}" aria-label="Tome ${i}, ${own ? "possédé, " : ""}${lbl || "non paru"}">
+      <div class="art">${img || `<span class="num">${i}</span>`}${own ? `<span class="st ${isRead ? "read" : ""}">${icon(isRead ? "done_all" : "check")}</span>` : ""}</div>
       <span class="lbl"><span class="num">t.${i}</span><span>${lbl}</span></span></button>`;
   }
   return html + `</div>`;
@@ -407,10 +432,11 @@ function detailView() {
 function sheetView() {
   const s = find(state.detailId), i = state.sheetVol;
   if (!s || !i) return "";
-  const v = view(s), file = (s.covers || {})[i], own = v.owned.has(i);
+  const v = view(s), file = (s.covers || {})[i], own = v.owned.has(i), isRead = v.read.has(i);
   const q = encodeURIComponent(`${s.title} tome ${i} ${s.publisher || ""} manga couverture`);
   return `<div class="sheet-head"><div class="cv">${(file && imgTag(file)) || i}</div><div><h3>Tome ${i}</h3><div class="s-sub">${esc(s.title)}${state.busyVol === i ? " · enregistrement de la couverture…" : ""}</div></div></div>
     <button class="menu-item" type="button" data-act="s-own">${icon(own ? "remove_done" : "check_circle")}${own ? "Retirer de mon étagère" : "Je l'ai"}</button>
+    ${own ? `<button class="menu-item" type="button" data-act="s-read">${icon(isRead ? "visibility_off" : "done_all")}${isRead ? "Marquer comme non lu" : "Marquer comme lu"}</button>` : ""}
     <button class="menu-item" type="button" data-act="s-file">${icon("add_photo_alternate")}${file ? "Changer la couverture (photo ou image)" : "Ajouter une couverture (photo ou image)"}</button>
     <div class="paste">${icon("link")}<input id="urlZone" type="url" inputmode="url" placeholder="Colle le lien d'une image" aria-label="Lien de l'image de couverture" autocomplete="off"><button class="btn text small" type="button" data-act="s-url">OK</button></div>
     <a class="menu-item" href="https://www.google.com/search?tbm=isch&q=${q}" target="_blank" rel="noopener">${icon("image_search")}Chercher la couverture</a>
@@ -424,6 +450,7 @@ function render() {
   $("backBtn").hidden = !inDetail;
   $("appbar").classList.toggle("with-back", inDetail);
   $("searchBtn").hidden = inDetail || state.tab !== "shelf";
+  $("scanBtn").hidden = inDetail || state.tab === "soon";
   $("menuBtn").hidden = inDetail || state.tab !== "shelf";
   $("checkBtn").hidden = inDetail || state.tab !== "soon";
   $("checkBtn").disabled = state.checking;
@@ -475,6 +502,13 @@ $("main").addEventListener("click", async (ev) => {
   }
   if (act === "edit") openForm(s);
   if (act === "tome") openSheet(vol);
+  if (act === "readall") setRead(s, view(s).toRead, true);
+});
+$("main").addEventListener("change", async (e) => {
+  if (e.target.id !== "defPrice") return;
+  const p = Math.round(parseFloat(String(e.target.value).replace(",", ".")) * 100) / 100;
+  if (!(p >= 0 && p < 1000)) { snack("Prix invalide"); render(); return; }
+  state.meta.defaultPrice = p; await persist(); render(); snack(`Prix par défaut : ${euros(p)}`);
 });
 $("main").addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button][data-act]")) { e.preventDefault(); e.target.click(); } });
 
@@ -487,6 +521,7 @@ $("sheet").addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const s = find(state.detailId), i = state.sheetVol; if (!s || !i) return;
   if (el.dataset.act === "s-own") { closeSheet(); setOwned(s, i, !(s.owned || []).includes(i)); }
+  if (el.dataset.act === "s-read") { closeSheet(); setRead(s, [i], !(s.read || []).includes(i)); }
   if (el.dataset.act === "s-file") $("coverFile").click();
   if (el.dataset.act === "s-url") coverFromUrl(i);
   if (el.dataset.act === "s-delcover") {
@@ -538,6 +573,8 @@ function openForm(s) {
   $("f-nextdate").value = s && s.next ? s.next.date || "" : "";
   $("bnfResults").innerHTML = ""; $("bnfNote").hidden = true; state.bnfPick = null;
   $("f-pinned").checked = !!(s && s.pinned);
+  $("f-price").value = s && s.price > 0 ? s.price : "";
+  $("f-price").placeholder = String(priceOf({})).replace(".", ",");
   $("formErr").hidden = true;
   $("delBtn").hidden = !s;
   $("formDlg").showModal();
@@ -576,7 +613,9 @@ $("form").addEventListener("submit", async (e) => {
     title, publisher: $("f-publisher").value.trim(), author: $("f-author").value.trim(), artist: $("f-artist").value.trim(), status: $("f-status").value, published, owned,
     next: nextVol ? { vol: nextVol, date: nextDate || null, source: prev && prev.next && prev.next.vol === nextVol && prev.next.date === (nextDate || null) ? prev.next.source || null : "saisie" } : null,
     pinned: $("f-pinned").checked && !!nextVol,
+    price: Math.round(parseFloat(String($("f-price").value).replace(",", ".")) * 100) / 100 || undefined,
   };
+  if (!s.price) delete s.price;
   delete s.mnSlug;
   if (state.bnfPick && norm(title) === norm(state.bnfPick.title)) s.bnfKey = state.bnfPick.key;
   else if (prev && prev.title !== title) delete s.bnfKey;
@@ -586,26 +625,135 @@ $("form").addEventListener("submit", async (e) => {
 });
 
 // ---------- Sauvegarde ----------
+// Android sauvegarde aussi tout seul les données de l'appli sur le compte Google (Auto Backup).
+const fmtLong = (iso) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 $("menuBtn").addEventListener("click", () => {
-  const data = state.series.map((s) => { const c = clone(s); delete c.covers; return c; });
   $("csvStatus").hidden = true;
-  $("backupText").value = JSON.stringify({ app: "mangatheque", version: 1, series: data }, null, 1);
+  $("lastExport").textContent = state.meta.lastExport ? `Dernier envoi le ${fmtLong(state.meta.lastExport)}.` : "Aucun envoi pour l'instant.";
   $("backupDlg").showModal();
 });
 $("backupClose").addEventListener("click", () => $("backupDlg").close());
-$("backupCopy").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText($("backupText").value); snack("Sauvegarde copiée"); }
-  catch { $("backupText").select(); snack("Sélectionne le texte et copie-le."); }
-});
-$("backupRestore").addEventListener("click", async () => {
+$("exportBtn").addEventListener("click", async () => {
+  $("exportBtn").disabled = true;
   try {
-    const d = JSON.parse($("backupText").value);
-    if (!d || !Array.isArray(d.series) || d.series.some((s) => !s.id || !s.title)) throw new Error();
-    const covers = new Map(state.series.map((s) => [s.id, s.covers]));
-    state.series = d.series.map((s) => ({ ...s, covers: s.covers || covers.get(s.id) || undefined }));
+    const series = [];
+    for (const s0 of state.series) {
+      const s = clone(s0), covers = {};
+      for (const [vol, path] of Object.entries(s.covers || {})) {
+        try { const { data } = await Filesystem.readFile({ path, directory: Directory.Data }); covers[vol] = typeof data === "string" ? data : await blobToBase64(data); } catch {}
+      }
+      delete s.covers; s.coverData = covers; series.push(s);
+    }
+    const json = JSON.stringify({ app: "mangatheque", version: 2, exportedAt: new Date().toISOString(), meta: { defaultPrice: state.meta.defaultPrice }, series });
+    const name = `mangatheque-${todayISO()}.json`;
+    if (Capacitor.isNativePlatform()) {
+      const { uri } = await Filesystem.writeFile({ path: name, data: json, directory: Directory.Cache, encoding: "utf8" });
+      await Share.share({ title: "Sauvegarde Mangathèque", text: `Sauvegarde Mangathèque du ${fmtLong(new Date().toISOString())}`, files: [uri], dialogTitle: "Envoyer la sauvegarde vers…" });
+    } else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = name; a.click();
+    }
+    state.meta.lastExport = new Date().toISOString(); await persist();
+    $("lastExport").textContent = `Dernier envoi le ${fmtLong(state.meta.lastExport)}.`;
+  } catch (e) { if (!/cancel/i.test(String(e && e.message))) snack("La sauvegarde n'a pas pu être envoyée."); }
+  finally { $("exportBtn").disabled = false; }
+});
+$("restoreBtn").addEventListener("click", () => $("restoreFile").click());
+$("restoreFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || d.app !== "mangatheque" || !Array.isArray(d.series) || d.series.some((s) => !s.id || !s.title)) throw new Error();
+    if (!confirm(`Remplacer ta collection actuelle (${state.series.length} série(s)) par celle du fichier (${d.series.length} série(s)) ?`)) return;
+    const old = new Map(state.series.map((s) => [s.id, s.covers]));
+    const out = [];
+    for (const s of d.series) {
+      const coverData = s.coverData; delete s.coverData;
+      if (coverData && Object.keys(coverData).length) { s.covers = {}; for (const [vol, b64] of Object.entries(coverData)) { try { await storeCover(s, +vol, b64); } catch {} } }
+      else s.covers = old.get(s.id) || undefined;
+      out.push(s);
+    }
+    state.series = out;
+    if (d.meta && d.meta.defaultPrice) state.meta.defaultPrice = d.meta.defaultPrice;
     await persist(); render(); scheduleNotifications();
-    $("backupDlg").close(); snack(`${state.series.length} série(s) restaurée(s)`);
-  } catch { snack("Ce texte n'est pas une sauvegarde valide."); }
+    $("backupDlg").close(); snack(`${out.length} série(s) restaurée(s)`);
+  } catch { snack("Ce fichier n'est pas une sauvegarde de la Mangathèque."); }
+});
+
+// ---------- Scan du code-barres (ISBN) ----------
+const scan = { result: null };
+function scanShow(html, actions) { $("scanBody").innerHTML = html; $("scanActions").innerHTML = actions; }
+function openScan() {
+  scan.result = null; $("isbnInput").value = "";
+  scanShow(`<p class="summary">Vise le code-barres au dos du tome. Tu peux aussi taper l'ISBN.</p>`,
+    `<button class="btn text" type="button" data-sa="close">Fermer</button>${Capacitor.isNativePlatform() ? `<button class="btn filled" type="button" data-sa="scan">${icon("barcode_scanner")}Scanner</button>` : ""}`);
+  if (!$("scanDlg").open) $("scanDlg").showModal();
+}
+async function scanCamera() {
+  try {
+    const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+    if (!available) {
+      scanShow(`<p class="summary">Installation du lecteur de code-barres de Google (une seule fois)…</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button>`);
+      const done = new Promise((ok) => { BarcodeScanner.addListener("googleBarcodeScannerModuleInstallProgress", (ev) => { if (ev.state === 4 || ev.state === 5 || ev.state === 3) ok(ev.state); }); });
+      await BarcodeScanner.installGoogleBarcodeScannerModule();
+      const st = await Promise.race([done, new Promise((ok) => setTimeout(() => ok(0), 60000))]);
+      BarcodeScanner.removeAllListeners();
+      if (st !== 4) { scanShow(`<p class="summary">Le lecteur n'a pas pu s'installer. Vérifie ta connexion, ou tape l'ISBN.</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button><button class="btn filled" type="button" data-sa="scan">Réessayer</button>`); return; }
+    }
+    const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.Ean13] });
+    const code = barcodes && barcodes[0] && (barcodes[0].rawValue || barcodes[0].displayValue);
+    if (code) lookupIsbn(code); else openScan();
+  } catch (e) { if (!/cancel/i.test(String(e && e.message))) scanShow(`<p class="summary">Le scan n'a pas marché. Tape l'ISBN à la place.</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button>`); }
+}
+async function bnfIsbn(isbn) {
+  const q = `bib.isbn all "${isbn}"`;
+  const xml = await getText(`${BNF}?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(q)}&recordSchema=dublincore&maximumRecords=5`);
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  const rec = doc.getElementsByTagNameNS("*", "dc")[0];
+  if (!rec) return null;
+  const get = (tag) => [...rec.getElementsByTagNameNS("*", tag)].map((e) => e.textContent.trim());
+  const raw = get("title")[0] || "";
+  const pv = parseVolumeTitle(raw) || { base: raw.split(" / ")[0].trim(), vol: 1 };
+  const cr = parseCredits(raw, get("creator"), get("contributor"));
+  const title = pv.base.charAt(0).toUpperCase() + pv.base.slice(1);
+  return { isbn, title, key: norm(pv.base), vol: pv.vol, publisher: cleanPublisher(get("publisher")[0]), author: cr.author, artist: cr.artist };
+}
+async function lookupIsbn(raw) {
+  const isbn = String(raw || "").replace(/[^0-9Xx]/g, "");
+  $("isbnInput").value = isbn;
+  if (!/^97[89]\d{10}$/.test(isbn)) { scanShow(`<p class="summary">« ${esc(raw)} » n'est pas un ISBN de livre (13 chiffres commençant par 978 ou 979).</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button>`); return; }
+  scanShow(`<p class="summary">Recherche de l'ISBN ${isbn} dans le catalogue de la BnF…</p>`, "");
+  let r;
+  try { r = await bnfIsbn(isbn); } catch { scanShow(`<p class="summary">Le catalogue de la BnF ne répond pas. Vérifie ta connexion.</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button>`); return; }
+  if (!r) { scanShow(`<p class="summary">Cet ISBN n'est pas (encore) dans le catalogue de la BnF. Les toutes dernières sorties y arrivent avec quelques semaines de retard : ajoute le tome depuis la fiche de la série.</p>`, `<button class="btn text" type="button" data-sa="close">Fermer</button>`); return; }
+  scan.result = r;
+  const s = state.series.find((x) => x.bnfKey === r.key || norm(x.title) === r.key);
+  r.seriesId = s ? s.id : null;
+  const credits = [r.author, r.publisher].filter(Boolean).join(" · ");
+  let line, actions = `<button class="btn text" type="button" data-sa="close">Fermer</button>${Capacitor.isNativePlatform() ? `<button class="btn text" type="button" data-sa="scan">Scanner un autre</button>` : ""}`;
+  if (s && (s.owned || []).includes(r.vol)) line = `${icon("check_circle")} Tu l'as déjà.`;
+  else if (s) { line = `${icon("shopping_bag")} Tu ne l'as pas encore.`; actions += `<button class="btn filled" type="button" data-sa="own">${icon("add")}Je l'ai</button>`; }
+  else { line = `${icon("fiber_new")} Nouvelle série pour toi.`; actions += `<button class="btn filled" type="button" data-sa="create">${icon("add")}Ajouter</button>`; }
+  scanShow(`<div class="found"><b>${esc(r.title)} · tome ${r.vol}</b><span class="s-sub">${esc(credits)}</span><span class="li-s" style="display:flex;gap:8px;align-items:center">${line}</span></div>`, actions);
+}
+$("scanBtn").addEventListener("click", () => { openScan(); if (Capacitor.isNativePlatform()) scanCamera(); });
+$("isbnGo").addEventListener("click", () => lookupIsbn($("isbnInput").value));
+$("isbnInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lookupIsbn($("isbnInput").value); } });
+$("scanDlg").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-sa]"); if (!b) return;
+  const a = b.dataset.sa, r = scan.result;
+  if (a === "close") $("scanDlg").close();
+  if (a === "scan") scanCamera();
+  if (a === "own" && r) { const s = find(r.seriesId); if (s) { await setOwned(s, r.vol, true); lookupIsbn(r.isbn); } }
+  if (a === "create" && r) {
+    $("scanDlg").close();
+    openForm(null);
+    $("f-title").value = r.title; $("f-publisher").value = r.publisher; $("f-author").value = r.author; $("f-artist").value = r.artist;
+    $("f-owned").value = String(r.vol); $("f-published").value = r.vol;
+    state.bnfPick = { key: r.key, title: r.title };
+    $("bnfNote").textContent = "Infos trouvées grâce au code-barres. Touche « Compléter automatiquement » pour récupérer le nombre de tomes parus.";
+    $("bnfNote").hidden = false;
+  }
 });
 
 // ---------- Bouton retour Android ----------
@@ -626,6 +774,12 @@ load().then(() => {
   const last = state.meta && state.meta.checkedAt ? new Date(state.meta.checkedAt) : null;
   if (Capacitor.isNativePlatform() && (!last || Date.now() - last > 3 * 86400000)) checkReleases({ silent: true });
   bundledImports();
+  // Rappel discret, au plus une fois par semaine, si aucune sauvegarde n'a été envoyée depuis 30 jours.
+  const old = (iso, days) => !iso || Date.now() - new Date(iso) > days * 86400000;
+  if (Capacitor.isNativePlatform() && state.series.length && old(state.meta.lastExport, 30) && old(state.meta.remindedAt, 7)) {
+    state.meta.remindedAt = new Date().toISOString(); persist().catch(() => {});
+    setTimeout(() => snack("Pense à envoyer une sauvegarde : menu ⋮ de l'Étagère.", 6000), 3000);
+  }
 });
 
 // Fichiers CSV livrés avec une version de l'appli : chacun est importé une seule fois.
