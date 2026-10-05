@@ -14,15 +14,21 @@ jobs:
           mkdir -p probe
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36"
           fetch() { curl -sSL -A "$UA" -H "Accept-Language: fr-FR,fr" -o "probe/$1.html" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" || echo "$1 FAIL"; }
-          fetch planning "https://www.manga-news.com/index.php/planning?p_year=2026&p_month=10&p_editor="
-          fetch planning-default "https://www.manga-news.com/index.php/planning"
-          fetch recherche "https://www.manga-news.com/index.php/recherche/?q=frieren"
-          fetch recherche2 "https://www.manga-news.com/index.php/recherche/?search=frieren"
-          fetch serie "https://www.manga-news.com/index.php/serie/Valkyrie-Apocalypse"
-          fetch vol "https://www.manga-news.com/index.php/manga/Akane-banashi/vol-16"
-          fetch nautiljon "https://www.nautiljon.com/mangas/?q=frieren"
-          curl -sSI -A "$UA" "https://www.manga-news.com/index.php/planning" | head -20
-          for f in probe/*.html; do echo "== $f"; grep -o 'Sortie le [0-9/]*' "$f" | head -3; grep -o '<title>[^<]*' "$f"; grep -c 'vol-' "$f"; done
+          fetch gbooks "https://www.googleapis.com/books/v1/volumes?q=intitle:frieren&langRestrict=fr&maxResults=40&orderBy=newest&printType=books"
+          fetch gbooks2 "https://www.googleapis.com/books/v1/volumes?q=frieren+ki-oon&maxResults=40"
+          curl -sS -X POST -H "Content-Type: application/json" -o probe/anilist.html -w "anilist %{http_code} %{size_download}\n" https://graphql.anilist.co -d '{"query":"{ Page(perPage:3){ media(search:\"frieren\", type:MANGA){ title{romaji english native} status volumes chapters coverImage{large} synonyms } } }"}'
+          fetch bnf "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=bib.title%20all%20%22frieren%22&recordSchema=dublincore&maximumRecords=50"
+          head -c 1500 probe/gbooks.html; echo; head -c 800 probe/anilist.html; echo; head -c 1500 probe/bnf.html; echo
+          python3 - <<'PY'
+          import json
+          for f in ["probe/gbooks.html","probe/gbooks2.html"]:
+              try:
+                  d=json.load(open(f)); print(f, d.get("totalItems"), d.get("error",{}).get("message"))
+                  for it in d.get("items",[])[:40]:
+                      v=it["volumeInfo"]; print(" ", v.get("title"), "|", v.get("subtitle"), "|", v.get("publisher"), "|", v.get("publishedDate"), "|", "thumb" if v.get("imageLinks") else "-", "|", v.get("language"))
+              except Exception as e: print(f, e)
+          PY
+          true
       - name: Enregistrer
         run: |
           git config user.name "probe"; git config user.email "probe@users.noreply.github.com"
