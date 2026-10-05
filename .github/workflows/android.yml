@@ -24,7 +24,8 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      - name: Vérifier le SDK Android du runner
+        run: echo "ANDROID_HOME=$ANDROID_HOME" && ls $ANDROID_HOME/build-tools
 
       - name: Construire l'appli web
         run: |
