@@ -282,11 +282,11 @@ async function askNotifications() {
 
 // ---------- Snackbar ----------
 let snackTimer;
-function snack(msg) {
+function snack(msg, ms = 4000) {
   const el = $("snack"), host = document.querySelector("dialog[open]") || document.body;
   if (el.parentNode !== host) host.appendChild(el);
   el.textContent = msg; el.hidden = false;
-  clearTimeout(snackTimer); snackTimer = setTimeout(() => (el.hidden = true), 4000);
+  clearTimeout(snackTimer); snackTimer = setTimeout(() => (el.hidden = true), ms);
 }
 
 // ---------- Actions ----------
@@ -625,7 +625,27 @@ load().then(() => {
   render(); scheduleNotifications();
   const last = state.meta && state.meta.checkedAt ? new Date(state.meta.checkedAt) : null;
   if (Capacitor.isNativePlatform() && (!last || Date.now() - last > 3 * 86400000)) checkReleases({ silent: true });
+  bundledImports();
 });
+
+// Fichiers CSV livrés avec une version de l'appli : chacun est importé une seule fois.
+async function bundledImports() {
+  let files = [];
+  try { const r = await fetch("imports/index.json"); if (r.ok) files = await r.json(); } catch {}
+  const done = new Set(state.meta.imports || []);
+  for (const f of files) {
+    if (done.has(f)) continue;
+    try {
+      const r = await fetch("imports/" + f);
+      if (!r.ok) continue;
+      let last = "";
+      await importCsv(await r.text(), (m) => { last = m; if (!m.startsWith("Import terminé")) snack(m); });
+      state.meta.imports = [...done.add(f)];
+      await persist();
+      if (last) snack(last, 10000);
+    } catch {}
+  }
+}
 
 // ---------- Remplissage automatique (catalogue BnF) ----------
 $("bnfBtn").addEventListener("click", async () => {
@@ -684,8 +704,8 @@ function csvRecords(rows) {
   const at = (r, k) => (cols[k] >= 0 ? (r[cols[k]] || "").trim() : "");
   return rows.map((r, i) => ({ line: i + 1, title: at(r, "title"), vol: parseInt(at(r, "vol").replace(/\D+/g, ""), 10) || 0, cover: at(r, "cover"), author: at(r, "author"), artist: at(r, "artist") })).filter((r) => r.title);
 }
-async function importCsv(text) {
-  const status = (m) => { $("csvStatus").textContent = m; $("csvStatus").hidden = false; };
+const csvStatus = (m) => { $("csvStatus").textContent = m; $("csvStatus").hidden = false; };
+async function importCsv(text, status = csvStatus) {
   const recs = csvRecords(parseCsv(text));
   if (!recs.length) { status("Aucune ligne exploitable : vérifie que la première colonne contient le titre."); return; }
   let created = 0, updated = new Set(), tomes = 0, coversOk = 0, coversKo = 0;
