@@ -205,6 +205,11 @@ dialog.full { width: 100%; height: 100%; max-width: 100%; max-height: 100%; marg
 form.fields { padding: 8px 24px 32px; display: grid; gap: 20px; }
 .field { position: relative; display: grid; gap: 4px; }
 .field label { position: absolute; left: 12px; top: -9px; padding: 0 4px; background: var(--surface); font-size: 12px; color: var(--on-surface-variant); line-height: 16px; }
+.field textarea { border: 1px solid var(--outline); border-radius: 4px; padding: 14px 16px; background: var(--surface); font: inherit; font-size: 16px; width: 100%; color: var(--on-surface); resize: vertical; }
+.field textarea:focus { outline: none; border: 2px solid var(--primary); padding: 13px 15px; }
+.genres { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.synopsis { margin: 0 0 16px; font-size: 14px; line-height: 21px; color: var(--on-surface-variant); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.synopsis.open { -webkit-line-clamp: unset; display: block; }
 .field input, .field select { height: 56px; border: 1px solid var(--outline); border-radius: 4px; padding: 0 16px; background: var(--surface); font-size: 16px; width: 100%; color: var(--on-surface); }
 .field input:focus, .field select:focus { outline: none; border: 2px solid var(--primary); padding: 0 15px; }
 .field:focus-within label { color: var(--primary); }
@@ -301,6 +306,8 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
       <div class="field"><label for="f-author">Auteur (scénario)</label><input id="f-author" maxlength="80" placeholder="Kanehito Yamada" autocomplete="off"></div>
       <div class="field"><label for="f-artist">Dessinateur</label><input id="f-artist" maxlength="80" placeholder="Tsukasa Abe" autocomplete="off"></div>
     </div>
+    <div class="field"><label for="f-genre">Genre</label><input id="f-genre" maxlength="80" placeholder="Fantasy, Aventure" autocomplete="off"><span class="support">Plusieurs genres séparés par des virgules. Seinen, shōnen ou shōjo peuvent aussi y figurer.</span></div>
+    <div class="field"><label for="f-summary">Résumé</label><textarea id="f-summary" rows="4" maxlength="1200" placeholder="En quelques lignes, de quoi parle la série"></textarea></div>
     <div class="row2">
       <div class="field"><label for="f-published">Tomes parus en France</label><input id="f-published" type="number" min="0" max="400" inputmode="numeric" placeholder="108"></div>
       <div class="field"><label for="f-owned">Tomes possédés</label><input id="f-owned" placeholder="1-12, 14" autocomplete="off"><span class="support">Ex. 1-12, 14</span></div>
@@ -337,6 +344,9 @@ body { padding-top: env(safe-area-inset-top, 0px); overscroll-behavior-y: none; 
     <p class="summary" style="margin:0"><b>Automatique :</b> Android sauvegarde les données de l'appli (collection et couvertures) sur ton compte Google, en général une fois par jour quand le téléphone charge en Wi-Fi. Elles reviennent toutes seules si tu réinstalles l'appli ou changes de téléphone. Vérifie que c'est activé dans Paramètres › Google › Sauvegarde.</p>
     <p class="summary" style="margin:0"><b>Manuelle :</b> envoie un fichier de sauvegarde complet, couvertures comprises, vers Google Drive ou par mail. <span id="lastExport"></span></p>
     <div class="actions" style="margin:0"><button class="btn filled" type="button" id="exportBtn"><span class="ms">cloud_upload</span>Envoyer une sauvegarde</button><button class="btn outlined" type="button" id="restoreBtn"><span class="ms">restore</span>Restaurer un fichier</button></div>
+    <div class="section-title" style="margin:8px 0 0">Liste de tes séries</div>
+    <p class="summary" style="margin:0">Copie les titres de toutes tes séries pour les coller dans une conversation avec Claude, par exemple pour compléter les genres et résumés.</p>
+    <div class="actions" style="margin:0"><button class="btn tonal" type="button" id="titlesBtn"><span class="ms">content_copy</span>Copier la liste des titres</button></div>
     <input type="file" id="restoreFile" accept=".json,application/json,text/plain" hidden>
   </div>
 </dialog>

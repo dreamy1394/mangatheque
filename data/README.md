@@ -26,3 +26,11 @@ Format : `{ source, updatedAt, from, to, count, items: [{ t: titre, v: tome, d: 
    garder le fichier précédent et le signaler à Tanguy.
 
 Usage personnel et léger : une centaine de pages au maximum, une fois par semaine.
+
+# Genre et résumé des séries
+
+`series-info.json` associe à chaque titre de série un genre et un bref résumé rédigés par
+Claude, à partir des informations publiques sur la série (résumés reformulés, jamais
+copiés). L'appli le télécharge au lancement et ne remplit que les champs encore vides : ce
+que Tanguy saisit dans la fiche n'est jamais écrasé. Pour ajouter des séries, Tanguy copie
+la liste de ses titres (menu ⋮ › « Copier la liste des titres ») et l'envoie à Claude.

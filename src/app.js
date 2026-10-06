@@ -272,6 +272,20 @@ async function applyPlanning() {
   state.meta = { ...state.meta, planningAt: data.updatedAt };
   return found;
 }
+// Genre et résumé : fichier rédigé par Claude et publié dans le dépôt. Ne remplit que les champs vides.
+const SERIES_INFO = "https://raw.githubusercontent.com/dreamy1394/mangatheque/main/data/series-info.json";
+async function applySeriesInfo() {
+  const data = JSON.parse(await getText(SERIES_INFO + "?t=" + Date.now()));
+  const byKey = new Map(Object.entries((data && data.series) || {}).map(([t, i]) => [norm(t), i]));
+  let n = 0;
+  state.series = state.series.map((s) => {
+    const i = byKey.get(norm(s.title)) || (s.bnfKey && byKey.get(s.bnfKey));
+    if (!i || ((s.genre || !i.genre) && (s.summary || !i.summary))) return s;
+    n++;
+    return { ...s, genre: s.genre || i.genre || "", summary: s.summary || i.summary || "" };
+  });
+  return n;
+}
 async function checkReleases({ silent } = {}) {
   if (state.checking) return;
   state.checking = true; render();
@@ -279,6 +293,7 @@ async function checkReleases({ silent } = {}) {
   const found = [];
   let announced = [];
   try { announced = await applyPlanning(); } catch {}
+  try { await applySeriesInfo(); } catch {}
   for (const orig of state.series.filter((s) => (s.status || "ongoing") === "ongoing")) {
     try {
       const key = orig.bnfKey || norm(orig.title);
@@ -387,7 +402,7 @@ function seriesCard(v) {
   </div>`;
 }
 function matches(v) {
-  if (state.q && !(`${v.s.title} ${v.s.publisher || ""} ${v.s.author || ""} ${v.s.artist || ""}`).toLowerCase().includes(state.q)) return false;
+  if (state.q && !(`${v.s.title} ${v.s.publisher || ""} ${v.s.author || ""} ${v.s.artist || ""} ${v.s.genre || ""}`).toLowerCase().includes(state.q)) return false;
   if (state.filter === "missing") return v.missing.length > 0;
   if (state.filter === "toread") return v.toRead.length > 0;
   if (state.filter === "ongoing") return (v.s.status || "ongoing") === "ongoing";
@@ -462,6 +477,7 @@ function soonView(views) {
   if (waiting.length) html += `<div class="section-title">Pas encore annoncé <span>${waiting.length}</span></div><p class="summary">${waiting.map((v) => esc(v.s.title)).join(" · ")}</p>`;
   return html;
 }
+const genresOf = (s) => String(s.genre || "").split(/\s*[,;/]\s*/).map((g) => g.trim()).filter(Boolean);
 function creditsHtml(s) {
   const a = (s.author || "").trim(), d = (s.artist || "").trim();
   if (!a && !d) return "";
@@ -477,6 +493,8 @@ function detailView() {
     <h2>${esc(s.title)}</h2>
     ${creditsHtml(s)}
     <span class="s-sub">${esc(s.publisher || "Éditeur non renseigné")}${s.example ? " · exemple" : ""}</span></div></div>
+    ${genresOf(s).length ? `<div class="genres">${genresOf(s).map((g) => `<span class="tag">${esc(g)}</span>`).join("")}</div>` : ""}
+    ${s.summary ? `<p class="synopsis" data-act="more" role="button" tabindex="0">${esc(s.summary)}</p>` : ""}
     <div class="stats"><div><b class="num">${v.owned.size}</b><span>possédés</span></div><div><b class="num">${v.published}</b><span>parus</span></div><div><b class="num" style="${v.missing.length ? "color:var(--error)" : ""}">${v.missing.length}</b><span>manquants</span></div><div><b class="num">${v.toRead.length}</b><span>à lire</span></div></div>`;
   if (v.upcoming) html += `<div class="next-card">${icon("event_upcoming")}<div class="grow"><div style="font-weight:500">Tome ${v.upcoming.vol}</div><div style="font-size:13px">${v.upcoming.date ? fmtDate(v.upcoming.date, { weekday: "long", day: "numeric", month: "long" }) : "Date non annoncée"}</div></div>
     <button class="icon-btn" type="button" data-act="pin" data-id="${esc(s.id)}" aria-pressed="${!!s.pinned}" aria-label="${s.pinned ? "Désépingler" : "Épingler et me prévenir"}">${icon("push_pin", s.pinned)}</button></div>`;
@@ -555,6 +573,7 @@ $("search").addEventListener("input", (e) => { state.q = e.target.value.trim().t
 $("main").addEventListener("click", async (ev) => {
   const el = ev.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act, s = el.dataset.id ? find(el.dataset.id) : find(state.detailId), vol = +el.dataset.vol;
+  if (act === "more") { el.classList.toggle("open"); return; }
   if (act === "filter") { state.filter = el.dataset.f; Preferences.set({ key: "filter", value: state.filter }).catch(() => {}); render(); return; }
   if (!s) return;
   if (act === "open") openDetail(s.id);
@@ -633,6 +652,8 @@ function openForm(s) {
   $("f-publisher").value = s ? s.publisher || "" : "";
   $("f-author").value = s ? s.author || "" : "";
   $("f-artist").value = s ? s.artist || "" : "";
+  $("f-genre").value = s ? s.genre || "" : "";
+  $("f-summary").value = s ? s.summary || "" : "";
   $("f-status").value = s ? s.status || "ongoing" : "ongoing";
   $("f-published").value = s ? s.published || "" : "";
   $("f-owned").value = s ? formatOwned(s.owned || []) : "";
@@ -677,7 +698,7 @@ $("form").addEventListener("submit", async (e) => {
   const s = {
     ...(prev ? clone(prev) : {}),
     id: prev ? prev.id : (title.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "serie") + "-" + Math.random().toString(36).slice(2, 6),
-    title, publisher: $("f-publisher").value.trim(), author: $("f-author").value.trim(), artist: $("f-artist").value.trim(), status: $("f-status").value, published, owned,
+    title, publisher: $("f-publisher").value.trim(), author: $("f-author").value.trim(), artist: $("f-artist").value.trim(), genre: $("f-genre").value.trim(), summary: $("f-summary").value.trim(), status: $("f-status").value, published, owned,
     next: nextVol ? { vol: nextVol, date: nextDate || null, source: prev && prev.next && prev.next.vol === nextVol && prev.next.date === (nextDate || null) ? prev.next.source || null : "saisie" } : null,
     pinned: $("f-pinned").checked && !!nextVol,
     price: Math.round(parseFloat(String($("f-price").value).replace(",", ".")) * 100) / 100 || undefined,
@@ -723,6 +744,11 @@ $("exportBtn").addEventListener("click", async () => {
     $("lastExport").textContent = `Dernier envoi le ${fmtLong(state.meta.lastExport)}.`;
   } catch (e) { if (!/cancel/i.test(String(e && e.message))) snack("La sauvegarde n'a pas pu être envoyée."); }
   finally { $("exportBtn").disabled = false; }
+});
+$("titlesBtn").addEventListener("click", async () => {
+  const txt = state.series.map((s) => s.title).sort((a, b) => a.localeCompare(b, "fr")).join("\n");
+  try { await navigator.clipboard.writeText(txt); snack(`${state.series.length} titres copiés`); }
+  catch { snack("Copie impossible sur cet appareil."); }
 });
 $("restoreBtn").addEventListener("click", () => $("restoreFile").click());
 $("restoreFile").addEventListener("change", async (e) => {
@@ -840,7 +866,7 @@ load().then(() => {
   render(); scheduleNotifications();
   const last = state.meta && state.meta.checkedAt ? new Date(state.meta.checkedAt) : null;
   if (Capacitor.isNativePlatform() && (!last || Date.now() - last > 3 * 86400000)) checkReleases({ silent: true });
-  else applyPlanning().then(async (found) => { await persist(); render(); scheduleNotifications(); if (found.length) snack(`Annoncé : ${found.join(", ")}`, 8000); }).catch(() => {});
+  else applySeriesInfo().catch(() => 0).then(() => applyPlanning().catch(() => [])).then(async (found) => { await persist(); render(); scheduleNotifications(); if (found.length) snack(`Annoncé : ${found.join(", ")}`, 8000); }).catch(() => {});
   bundledImports();
   // Rappel discret, au plus une fois par semaine, si aucune sauvegarde n'a été envoyée depuis 30 jours.
   const old = (iso, days) => !iso || Date.now() - new Date(iso) > days * 86400000;

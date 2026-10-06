@@ -1,0 +1,10 @@
+{
+  "note": "Genre et bref résumé par série, rédigés par Claude. L'appli ne remplit que les champs encore vides. Clé = titre de la série.",
+  "updatedAt": "2026-10-06",
+  "series": {
+    "Valkyrie Apocalypse": {
+      "genre": "Action, Combat, Fantasy, Seinen",
+      "summary": "Tous les mille ans, les dieux se réunissent pour décider du sort de l'humanité, et cette fois ils votent sa destruction. La valkyrie Brunehilde obtient un dernier recours : le Ragnarök, treize duels à mort entre les dieux et les plus grands héros de l'histoire humaine. Chaque combat oppose un dieu à une figure légendaire, avec l'avenir de l'humanité en jeu."
+    }
+  }
+}
