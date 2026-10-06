@@ -5,6 +5,150 @@
     "Valkyrie Apocalypse": {
       "genre": "Action, Combat, Fantasy, Seinen",
       "summary": "Tous les mille ans, les dieux se réunissent pour décider du sort de l'humanité, et cette fois ils votent sa destruction. La valkyrie Brunehilde obtient un dernier recours : le Ragnarök, treize duels à mort entre les dieux et les plus grands héros de l'histoire humaine. Chaque combat oppose un dieu à une figure légendaire, avec l'avenir de l'humanité en jeu."
+    },
+    "Gannibal": {
+      "genre": "Thriller, Horreur, Mystère, Seinen",
+      "summary": "Policier muté avec sa famille dans un village de montagne isolé, Daigo Agawa remplace un prédécesseur disparu dans d'étranges circonstances. Très vite, la découverte d'ossements humains et l'attitude inquiétante du puissant clan Gotō lui font soupçonner que les habitants cachent un secret abominable : du cannibalisme."
+    },
+    "Jujutsu Kaisen": {
+      "genre": "Action, Surnaturel, Horreur, Shōnen",
+      "summary": "Lycéen à la force hors norme, Yuji Itadori avale un doigt maudit pour sauver ses amis et devient l'hôte de Sukuna, un démon redoutable. Plutôt que d'être exécuté, il intègre une école d'exorcistes à Tokyo afin de rassembler les autres doigts du fléau et d'affronter les fléaux nés des émotions négatives des humains."
+    },
+    "Kaiju n°8": {
+      "genre": "Action, Science-fiction, Comédie, Shōnen",
+      "summary": "Au Japon, des monstres géants surgissent régulièrement et une unité d'élite est chargée de les abattre. Kafka Hibino, trentenaire qui nettoie les carcasses faute d'avoir intégré ce corps de défense, se transforme un jour lui-même en kaiju. Il décide pourtant de réaliser son rêve d'enfance en devenant soldat, tout en cachant sa nature."
+    },
+    "Kengan Ashura": {
+      "genre": "Action, Arts martiaux, Combat, Seinen",
+      "summary": "Au Japon, de grandes entreprises règlent leurs différends commerciaux lors de duels clandestins à mains nues, les matchs Kengan. Simple employé, Yamashita se retrouve manager de Tokita Ohma, un combattant redoutable surnommé « l'Ashura », bien décidé à s'imposer dans un tournoi géant où s'affrontent les lutteurs les plus brutaux du pays."
+    },
+    "La fiancée du clan Kyougane": {
+      "genre": "Action, Comédie, Romance, Surnaturel",
+      "summary": "Héritier d'une lignée d'exorcistes, Masaomi apprend le jour de ses noces que son clan n'a jamais vaincu un terrible renard à neuf queues, mais lui livrait chaque nouvelle épouse en sacrifice. Après avoir abattu la créature, il découvre que son esprit s'est logé dans sa jeune mariée, avec laquelle il doit désormais composer."
+    },
+    "Le livre du multivers": {
+      "genre": "Aventure, Fantasy, Action",
+      "summary": "Après la disgrâce de sa famille, le jeune Marco Polo enchaîne les petits boulots pour nourrir ses frères et sœurs. Embarqué comme mousse, il est soudain projeté dans une dimension d'inspiration asiatique peuplée de monstres. Il y rejoint une équipe de héros voyageant entre les univers pour contrer une organisation qui menace l'humanité."
+    },
+    "Lili-men": {
+      "genre": "Action, Fantastique, Suspense, Seinen",
+      "summary": "Nito a grandi enfermé dans un laboratoire où l'on menait sur lui de terribles expériences. Découvrant que ses compagnons servent de nourriture aux rejetons de succubes, il absorbe leurs pouvoirs en s'évadant et devient un hybride. Pris entre les humains et ces créatures, il cherche à vivre la vie ordinaire dont rêvaient ses amis."
+    },
+    "Smile!": {
+      "genre": "Horreur, Suspense, Thriller, Seinen",
+      "summary": "Yûshi Kamome, journaliste indépendant en galère, tombe par hasard sur le visage de son ex-femme disparue dans une brochure de l’Église du Sourire éternel. Décidé à comprendre ce qui lui est arrivé, il enquête sur cette secte inquiétante, alors que des cadavres nus au visage mutilé commencent à être retrouvés."
+    },
+    "Oni Goroshi": {
+      "genre": "Horreur, Action, Fantastique",
+      "summary": "En 1991, à Shinjô, Shûhei Sakata tue sa femme et sa fille, poussé par une possession démoniaque. Après quinze ans de prison, il revient dans cette ville maudite depuis l’époque Heian, bien décidé à se venger des cinq démons qui la hantent et qui ont fait de lui un meurtrier."
+    },
+    "Centuria": {
+      "genre": "Dark fantasy, Aventure, Drame, Shōnen",
+      "summary": "Julian, jeune esclave, se retrouve héritier d’un pouvoir étrange : la force de cent hommes. Embarqué sur un navire avec d’autres esclaves, dont Mira, une femme enceinte, il tente de gagner sa liberté dans un monde brutal, tout en affrontant les mystérieux périls de mers maudites et le prix caché de ce don."
+    },
+    "Chiruran": {
+      "genre": "Action, Historique, Samouraïs, Seinen",
+      "summary": "Edo, 1859 : Toshizô Hijikata, jeune bretteur de 24 ans, rêve de devenir le sabreur le plus fort de la capitale. À travers les souvenirs de Shinpachi Nagakura, l’un des rares survivants, on suit son ascension jusqu’au poste de vice-commandant du Shinsen Gumi, où il gagnera le surnom de « démon »."
+    },
+    "Deadman Wonderland": {
+      "genre": "Action, Science-fiction, Suspense, Shōnen",
+      "summary": "Après un séisme qui a ravagé Tokyo, une prison privée, Deadman Wonderland, est devenue un parc d’attractions où les détenus risquent leur vie dans des jeux mortels. Seul survivant du massacre de sa classe par un mystérieux « homme en rouge », le collégien Ganta est accusé à tort et enfermé dans ce lieu cauchemardesque."
+    },
+    "Denjin N": {
+      "genre": "Thriller, Fantastique, Policier, Seinen",
+      "summary": "Nasu, un raté obsédé par l’idole Misaki Kanzaki, acquiert après un accident le pouvoir de prendre possession de n’importe quel appareil électrique. Il s’en sert pour éliminer tous ceux qui gênent la carrière de sa star, devenant un tueur quasi omnipotent que la police tente de traquer avec l’aide de deux frères médiums."
+    },
+    "Doomsday War": {
+      "genre": "Action, Science-fiction, Survival, Seinen",
+      "summary": "En 2206, la Terre agonise et l’IA Gaïa prédit la fin de l’humanité d’ici un siècle si la population n’est pas réduite. Les seize nations restantes organisent alors un tournoi où chacune envoie un champion doté de pouvoirs : les pays vaincus seront purement et simplement rayés de la carte."
+    },
+    "Miyabichi no onmyoji": {
+      "genre": "Action, Fantastique, Surnaturel, Seinen",
+      "summary": "Fuzuki, un exorciste que l'on surnomme « l'hérétique », parcourt le pays pour retrouver dix trésors sacrés de la famille impériale dérobés par des ayakashi, des esprits malfaisants. En chemin, il prend sous son aile un garçon mi-humain mi-yôkai et fait équipe avec un compagnon aux oreilles de loup : trois parias rejetés par les leurs qui s'unissent pour se protéger."
+    },
+    "No-go Zone Level X": {
+      "genre": "Horreur, Suspense, Survival, Seinen",
+      "summary": "Ryôka, une lycéenne, se réveille seule dans son immeuble devenu soudain une prison hermétique. Par message, sa mère l'avertit qu'une mystérieuse créature baptisée « X » rôde dans les étages. La jeune fille doit survivre, trouver une issue et comprendre pourquoi elle est la seule à être restée enfermée à l'intérieur."
+    },
+    "Oneira": {
+      "genre": "Dark fantasy, Aventure, Action",
+      "summary": "Dans les terres de la Couronne, une Église avide de pouvoir mène une croisade sanglante contre les créatures issues des cauchemars. Arane Heos, chasseuse réputée que l'on surnomme « le Croque-mitaine », doit tenir tête aux inquisiteurs bien décidés à anéantir sa caste, tout en protégeant le lourd secret qui entoure son propre enfant."
+    },
+    "Out": {
+      "genre": "Action, Drame, Délinquance (furyo), Seinen",
+      "summary": "À 17 ans, Tatsuya Iguchi sort de maison de correction avec une mise à l'épreuve : il est envoyé loin de ses anciennes fréquentations, chez sa tante, où il travaille dans son restaurant. Mais malgré sa volonté de rester dans le droit chemin, son tempérament bagarreur le ramène vite vers les gangs et le milieu, qui ne demandent qu'à l'aspirer de nouveau."
+    },
+    "Requiem : chevalier vampire": {
+      "genre": "Fantastique, Horreur, Vampires, Dark fantasy",
+      "summary": "Tué sur le front de l'Est pendant la Seconde Guerre mondiale, le soldat allemand Heinrich Augsburg se réveille sur Résurrection, un monde infernal où les pires âmes renaissent sous forme de monstres. Devenu vampire sous le nom de Requiem, il y découvre une société cruelle et inversée, tout en cherchant la femme qu'il a aimée de son vivant."
+    },
+    "Rokudo tosoki": {
+      "genre": "Action, Fantasy, Aventure, Seinen",
+      "summary": "Dans un monde souterrain où l'humanité s'est réfugiée, le jeune En survit dans la misère en dépouillant les cadavres des perdants du tournoi des six royaumes pour récupérer leurs modifications corporelles, qui décuplent la force au combat. Une rencontre mystérieuse bouleverse sa vision du monde et l'entraîne sur une voie bien plus sombre que son rêve d'une vie simplement confortable."
+    },
+    "Shigahime": {
+      "genre": "Horreur, Suspense, Vampires, Seinen",
+      "summary": "Lycéen à la vie terne, Osamu Hirota croise la route de Miwako, une vampire immortelle, et de Sôichi Tachibana, l'adolescent qui la servait jusque-là. Devenu à son tour son familier, il doit traquer d'autres êtres de son espèce pour conserver forme humaine. Une série en cinq tomes qui mêle vampirisme, horreur et érotisme dans une ambiance très sanglante."
+    },
+    "Tatari": {
+      "genre": "Fantasy, Aventure, Surnaturel, Shōnen",
+      "summary": "Scellé depuis un millénaire, Tatari est un bakeneko, un chat démoniaque, qui a perdu l'essentiel de ses pouvoirs. Recueilli par Takeru et Yuki, deux orphelins, il assiste au meurtre mystérieux du garçon et décide de prendre son apparence pour enquêter sur ce crime et le venger."
+    },
+    "The brave wish revenging": {
+      "genre": "Dark fantasy, Action, Vengeance, Seinen",
+      "summary": "Après avoir vaincu le roi démon, le héros Raoul est accusé à tort par le royaume qu'il a sauvé, torturé puis condamné au bûcher pour avoir repoussé la demande en mariage de la princesse. Revenu d'entre les morts avec des pouvoirs ténébreux, il jure de faire payer chacun de ceux qui l'ont trahi, dans une quête de vengeance d'une grande violence."
+    },
+    "The god slaying demon king": {
+      "genre": "Fantasy, Action, Aventure",
+      "summary": "Hairam, le plus puissant roi démon de l'histoire, refuse les sacrifices exigés par le dieu démon et tente de l'abattre, sans succès. Réincarné en humain mais doté de toutes ses aptitudes de combat et de magie, il reprend sa mission : éliminer cette divinité affaiblie, en compagnie d'une princesse elfe et d'un jeune dragon."
+    },
+    "The summer Hikaru died": {
+      "genre": "Horreur, Surnaturel, Drame, Seinen",
+      "summary": "Dans un village reculé des montagnes japonaises, Yoshiki comprend que son ami d'enfance Hikaru, disparu une semaine dans la forêt, n'est pas vraiment revenu : une entité inconnue a pris sa place. Incapable de renoncer à lui, Yoshiki choisit de garder ce secret, tandis que d'étranges phénomènes commencent à troubler le village."
+    },
+    "Zashisu": {
+      "genre": "Thriller, Suspense, Policier, Seinen",
+      "summary": "Professeur d'université, Kai Yamauchi apprend le meurtre de Yûki Suzuki, un ancien camarade de classe. Peu après, sa compagne Tamao, éditrice, tombe sur un manuscrit inédit qui décrit ce crime dans ses moindres détails et annonce d'autres victimes. L'auteur serait-il un proche de Kai ? De vieilles histoires de harcèlement scolaire refont alors surface."
+    },
+    "After god": {
+      "genre": "Fantastique, Suspense, Action, Shōnen",
+      "summary": "Depuis que des divinités ont envahi une partie de Tokyo, la zone est devenue un territoire mortel. Waka s'y aventure pourtant pour retrouver une amie disparue, mais elle abrite elle-même une mystérieuse présence. Cette force pourrait aussi bien déclencher la fin du monde que devenir l'arme capable de le sauver."
+    },
+    "Crime game": {
+      "genre": "Survival game, Thriller, Horreur, Seinen",
+      "summary": "Le lycéen Homura Amagoe se réveille dans un Shibuya dévasté, où un mystérieux individu surnommé Inconnu annonce que tous les crimes y sont désormais permis. Les participants sont lancés dans un jeu de survie impitoyable où il faut commettre des actes de plus en plus graves, révélant ce que deviennent les gens une fois les lois et la morale abolies."
+    },
+    "Danzai lock": {
+      "genre": "Suspense, Fantastique, Dystopie, Seinen",
+      "summary": "Dans une société où quiconque a causé la mort d'autrui est automatiquement condamné, les coupables sont envoyés dans la sixième prison, une ville close accessible seulement par train. Là-bas, les années de vie servent de monnaie qu'on gagne ou qu'on parie. Un moine, Yûshin, y croise Kunoji, le bourreau du district, qui veille sur une fillette au crime mystérieux."
+    },
+    "hell's paradise": {
+      "genre": "Action, Aventure, Fantastique, Shōnen",
+      "summary": "À l'époque d'Edo, Gabimaru, ninja redouté condamné à mort, se voit offrir une grâce : rapporter l'élixir d'immortalité d'une île mystérieuse d'où personne ne revient. Escorté par une exécutrice, Sagiri, il rejoint d'autres condamnés lancés dans la même quête, sur une terre peuplée de créatures étranges et de dangers surnaturels."
+    },
+    "Masquerade confidence": {
+      "genre": "Action, Drame, Fantasy, Seinen",
+      "summary": "Linus Kruger, escroc de génie, se fait dérober toute sa fortune par Chronica, une jeune fille capable de lire dans les âmes et de détecter le moindre mensonge. Pour récupérer son argent, il n'a d'autre choix que de l'accompagner dans un voyage périlleux, entre intrigues politiques, ennemis redoutables et secrets que chacun garde jalousement."
+    },
+    "Origin": {
+      "genre": "Action, Science-fiction, Thriller, Seinen",
+      "summary": "En 2048, Tokyo est reliée à l'Eurasie par un chemin de fer transcontinental et gangrenée par le crime et le terrorisme. Parmi les habitants se cachent des êtres qui ne sont pas humains et qui sortent la nuit pour tuer. Origin, un mystérieux personnage, traque ces créatures, ce qui l'amène à s'interroger sur sa propre nature."
+    },
+    "Platinum End": {
+      "genre": "Fantastique, Thriller psychologique, Drame, Shōnen",
+      "summary": "Mirai, lycéen brisé par une vie de malheurs, tente de mettre fin à ses jours avant d'être sauvé par Nasse, un ange qui lui confie des ailes et des flèches surnaturelles. Il devient l'un des treize candidats choisis pour succéder à Dieu, et se retrouve pris dans une compétition mortelle où les autres prétendants n'hésitent pas à tuer."
+    },
+    "Ring eyes": {
+      "genre": "Suspense, Fantastique, Action, Shōnen",
+      "summary": "Mamoru ne s'est jamais remis de l'assassinat brutal de son amie d'enfance, tuée par un criminel doté de pouvoirs psychiques. Bien décidé à découvrir la vérité et à la venger, il fait équipe avec Riko, une « Psycho », c'est-à-dire une humaine aux capacités surnaturelles, pour remonter la piste du meurtrier."
+    },
+    "Sinners": {
+      "genre": "Fantastique, Suspense, Action",
+      "summary": "Quinze ans plus tôt, le « Jour du Jugement » a ouvert des portails vers le purgatoire un peu partout sur Terre. Les âmes damnées qui s'en sont échappées ont pris possession d'humains, les changeant en abominations qui se nourrissent d'âmes. L'humanité doit désormais survivre et lutter contre ces entités démoniaques."
+    },
+    "Sun-Ken Rock": {
+      "genre": "Action, Comédie, Gangsters, Seinen",
+      "summary": "Ken, jeune Japonais bagarreur, part à Séoul pour devenir policier et impressionner Yumin, la fille dont il est amoureux. Mais après avoir défendu un restaurateur contre des malfrats, il se fait remarquer par un chef de gang qui l'enrôle. Le voilà plongé dans le milieu, entre bastons, gags et ascension imprévue."
     }
   }
 }
