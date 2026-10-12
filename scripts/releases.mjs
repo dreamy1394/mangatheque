@@ -9,7 +9,7 @@ for (const line of readFileSync(src, "utf8").split(/\r?\n/)) {
   const parts = line.split("|").map((x) => x.trim());
   if (parts.length !== 4) continue;
   const [t0, vol, date, p] = parts;
-  const t = t0.replace(/\s+(?:Vol\.?|T\.?|Tome)\s*\d+\s*$/i, "").trim(); // « Wait, I Love You Vol.2 » -> « Wait, I Love You »
+  const t = t0.replace(/\s*[\u3000-\u9fff\uff00-\uffef].*$/, "").replace(/\s+(?:Vol\.?|T\.?|Tome)\s*\d+\s*$/i, "").trim(); // « Wait, I Love You Vol.2 » -> « Wait, I Love You »
   const v = (vol.match(/(\d+)/) || [])[1], d = date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!t || !v || !d) continue; // artbooks et coffrets sans numéro : ignorés
   const it = { t, v: +v, d: `${d[3]}-${d[2]}-${d[1]}`, p };
