@@ -19,7 +19,7 @@ Format : `{ source, updatedAt, from, to, count, items: [{ t: titre, v: tome, d: 
    like Vol.12 or N/A. No other text. »
 2. Mettre toutes les lignes dans un fichier texte, puis lancer
    `node scripts/releases.mjs <fichier>`. Le script refuse d'écrire un planning de moins
-   de 50 sorties.
+   de 300 sorties (relevé incomplet).
 3. Si `data/releases.json` a changé, le committer sur `main` et pousser. Le workflow de
    l'APK ignore `data/`, donc aucune nouvelle version n'est compilée.
 4. Si Manga-news renvoie une erreur 403 ou une page de vérification : ne rien contourner,

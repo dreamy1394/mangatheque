@@ -20,7 +20,7 @@ for (const line of readFileSync(src, "utf8").split(/\r?\n/)) {
   seen.set(k, it); items.push(it);
 }
 items.sort((a, b) => a.d.localeCompare(b.d) || a.t.localeCompare(b.t, "fr"));
-if (items.length < 50) { console.error(`Seulement ${items.length} sorties : planning incomplet, fichier non modifié.`); process.exit(2); }
+if (items.length < 300) { console.error(`Seulement ${items.length} sorties : planning incomplet, fichier non modifié.`); process.exit(2); }
 const out = "data/releases.json";
 const old = existsSync(out) ? JSON.parse(readFileSync(out, "utf8")) : null;
 if (old && JSON.stringify(old.items) === JSON.stringify(items)) { console.log("Planning inchangé."); process.exit(0); }
